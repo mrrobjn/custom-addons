@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="hospital_view_tree" model="ir.ui.view">
+        <field name="name">hospital.tree</field>
+        <field name="model">hospital.patient</field>
+        <field name="arch" type="xml">
+            <tree string="Players">
+                <field name="name" />
+                <field name="age" />
+                <field name="ref" />
+                <field name="gender" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="hospital_view_form" model="ir.ui.view">
+        <field name="name">hospital.patient.form</field>
+        <field name="model">hospital.patient</field>
+        <field name="arch" type="xml">
+            <form string="">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"></field>
+                            <field name="gender"></field>
+                        </group>
+                        <group>
+                            <field name="ref"></field>
+                            <field name="age"></field>
+                            <field name="active" invisible="1"></field>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="hospital_view_search" model="ir.ui.view">
+        <field name="name">hospital.patient.search</field>
+        <field name="model">hospital.patient</field>
+        <field name="arch" type="xml">
+            <search string="">
+                <field name="name"
+                    filter_domain="['|', ('name', 'ilike', self), ('age', 'ilike', self)]"></field>
+                <filter name="filter_male" string="Male" domain="[('gender', '=', 'male')]" />
+                <filter name="filter_female" string="Female" domain="[('gender', '=', 'female')]" />
+                <separator />
+                <filter name="filter_children" string="Children" domain="[('age', '&lt;=', '16')]" />
+                <separator />
+                <filter name="filter_archived" string="Archived" domain="[('active', '=', False)]" />
+
+                <group string="Group By">
+                    <filter string="Gender" name="group_by_gender" context="{'group_by': 'gender'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_hospital_patient" model="ir.actions.act_window">
+        <field name="name">Patients</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">hospital.patient</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first patient
+            </p>
+        </field>
+    </record>
+
+</odoo>

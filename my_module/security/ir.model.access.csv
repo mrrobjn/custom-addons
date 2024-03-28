@@ -1,0 +1,3 @@
+id,name,model_id/id,group_id/id,perm_read,perm_write,perm_create,perm_unlink
+access_player_staff,player.staff,model_player,my_module.group_player_staff,1,0,0,0
+access_player_hr,player.hr,model_player,my_module.group_player_hr,1,1,1,1

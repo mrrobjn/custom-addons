@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="player_view_tree" model="ir.ui.view">
+        <field name="name">player.tree</field>
+        <field name="model">player</field>
+        <field name="arch" type="xml">
+            <tree string="Players">
+                <field name="name" />
+                <field name="gender" />
+                <field name="day_of_birth" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="player_view_form" model="ir.ui.view">
+        <field name="name">player.view.form</field>
+        <field name="model">player</field>
+        <field name="arch" type="xml">
+            <form string="Player">
+                <sheet>
+                    <field name="image" widget="image" class="oe_avtar"/>
+                    <div class="oe_title">
+                        <label for="name"> </label>
+                        <h1>
+                            <field name="name"></field>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="gender"></field>
+                        </group>
+                        <group>
+                            <field name="day_of_birth"></field>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="player_action" model="ir.actions.act_window">
+        <field name="name">Players</field>
+        <field name="res_model">player</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+        id="player_menu"
+        name="Players"
+        groups="group_player_staff" />
+
+    <menuitem
+        id="player_menu_1"
+        name="Players"
+        action="player_action"
+        parent="player_menu"
+        groups="group_player_staff"
+    />
+
+</odoo>
