@@ -6,10 +6,11 @@
     "author": "Dung Vo Truong",
     "website": "www.myhospital.com",
     "version": "0.1",
-    "depends": [],
+    "depends": ['mail'],
     "data": [
         "security/ir.model.access.csv",
         "views/patient_view.xml",
+        "views/female_patient_view.xml",
         "views/menu.xml",
     ],
     "demo": [],
