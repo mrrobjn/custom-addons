@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_patient">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="web.report_layout">
+                    <div class="page">
+                        <h2>Patient Report</h2>
+                        <p>Name: <span t-field="doc.name" /></p>
+                        <p>Age: <span t-field="doc.age" /></p>
+                        <p>Gender: <span t-field="doc.gender" /></p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

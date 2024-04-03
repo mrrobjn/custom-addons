@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_patient_order" model="ir.actions.report">
+        <field name="name">Patient Detail</field>
+        <field name="model">hospital.patient</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">om_hospital.report_patient</field>
+        <field name="report_file">om_hospital.report_patient</field>
+        <field name="print_report_name">'Vehicle Report - %s' % (object.name)</field>
+        <field name="binding_model_id" ref="om_hospital.model_hospital_patient" />
+        <field name="binding_type">report</field>
+    </record>
+
+</odoo>

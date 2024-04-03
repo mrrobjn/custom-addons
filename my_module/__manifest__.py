@@ -18,4 +18,5 @@
         "views/player_views.xml",
     ],
     "application": True,
+    "license": "LGPL-3",
 }

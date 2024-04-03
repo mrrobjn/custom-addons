@@ -5,11 +5,14 @@
         <field name="name">hospital.tree</field>
         <field name="model">hospital.patient</field>
         <field name="arch" type="xml">
-            <tree string="Players">
+            <tree string="Patients">
                 <field name="name" />
                 <field name="age" />
                 <field name="ref" />
                 <field name="gender" />
+                <button class="btn btn-primary o_list_button_edit" type="object"
+                    name="action_view_patient"
+                    string="Edit" />
             </tree>
         </field>
     </record>
@@ -31,9 +34,10 @@
                             <field name="active" invisible="1"></field>
                         </group>
                     </group>
+                    <field name="appointment_ids" />
                 </sheet>
                 <div class="oe_chatter">
-                    <field name="message_follower_ids" group="base.group_user" />
+                    <field name="message_follower_ids" groups="base.group_user" />
                     <field name="activity_ids" />
                     <field name="message_ids" />
                 </div>

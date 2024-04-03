@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <menuitem
@@ -10,22 +9,27 @@
         id="menu_patient_master"
         name="Patients Details"
         parent="menu_hospital_root"
-        sequence="0" />
+        sequence="1" />
+
+    <menuitem
+        id="menu_appointment_master"
+        name="Appointment"
+        action="om_hospital.action_hospital_appointment"
+        parent="menu_hospital_root"
+        sequence="2" />
 
     <menuitem
         id="menu_patient"
         name="Patients"
-        action="action_hospital_patient"
+        action="om_hospital.action_hospital_patient"
         parent="menu_patient_master"
-        sequence="0"
-    />
+        sequence="0" />
 
     <menuitem
         id="menu_female_patient"
         name="Female Patients"
-        action="action_hospital_female_patient"
+        action="om_hospital.action_hospital_female_patient"
         parent="menu_patient_master"
-        sequence="0"
-    />
+        sequence="1" />
 
 </odoo>
