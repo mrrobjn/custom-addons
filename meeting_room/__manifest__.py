@@ -10,9 +10,10 @@
     "website": "http://www.yourcompany.com",
     "category": "Uncategorized",
     "version": "0.1",
-    "depends": ["base"],
+    "depends": ["mail"],
     "data": [
-        # 'security/ir.model.access.csv',
+        "security/security.xml",
+        "security/ir.model.access.csv",
         "views/room_view.xml",
         "views/schedule_view.xml",
         "views/menu.xml",
