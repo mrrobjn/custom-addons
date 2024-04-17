@@ -13,7 +13,7 @@ class MeetingSchedule(models.Model):
     name = fields.Char(
         string="Thumbnail", compute="_compute_meeting_name", required=True
     )
-    meeting_subject = fields.Char(string="Meeting subject", required=True)
+    meeting_subject = fields.Char(string="Meeting subject")
     description = fields.Text(string="Description")
     meeting_type = fields.Selection(
         string="Meeting type",
@@ -47,14 +47,21 @@ class MeetingSchedule(models.Model):
         selection=hours_selection,
         string="End time",
     )
+    action = fields.Selection(
+        selection=[
+            ("create", "Create Meeting"),
+            ("delete", "Delete Meeting"),
+        ],
+        string="Action",
+        default="create",
+        required=True,
+    )
     duration = fields.Integer(
         string="Duration(hour)",
         compute="_compute_duration",
         store=True,
     )
-    room_id = fields.Many2one(
-        "meeting.room", string="Room name", ondelete="cascade", required=True
-    )
+    room_id = fields.Many2one("meeting.room", string="Room name", ondelete="cascade")
     company_id = fields.Many2one(
         "res.company",
         string="Company name",
@@ -80,14 +87,6 @@ class MeetingSchedule(models.Model):
         compute="_compute_date_start",
     )
     repeat_weekly = fields.Integer(string="Repeat Weekly", default=1)
-    parent_ids = fields.Many2one(
-        "meeting.schedule",
-        string="Parent Meeting",
-        ondelete="cascade",
-        index=True,
-        help="Parent schedule for repeated meetings.",
-    )
-    is_parent = fields.Boolean(string="Parent Schedule", default=True)
 
     monday = fields.Boolean(string="Monday", default=True)
     tuesday = fields.Boolean(string="Tuesday", default=True)
@@ -97,15 +96,15 @@ class MeetingSchedule(models.Model):
     saturday = fields.Boolean(string="Saturday", default=False)
     sunday = fields.Boolean(string="Sunday", default=False)
 
+    include_other = fields.Boolean(
+        string="Include other user's meetings", default=False
+    )
+
     # Computed Fields
     @api.depends("name")
     def _compute_meeting_name(self):
         for record in self:
-            if record.is_parent:
-                record.name = f"{record.room_id.name} - {record.user_id.name} - Parent Meeting"
-            else:
-                record.name = f"{record.room_id.name} - {record.user_id.name}"
-
+            record.name = f"{record.room_id.name} - {record.user_id.name}"
 
     @api.depends("start_date")
     def _compute_date_start(self):
@@ -128,6 +127,24 @@ class MeetingSchedule(models.Model):
                 record.duration = duration
 
     # Constraints
+    # @api.constrains("duration")
+    # def _check_date(self):
+    #     for schedule in self:
+    #         if schedule.duration < 1:
+    #             raise ValidationError("Duration must be at least 1 hour")
+
+    @api.constrains("meeting_subject")
+    def _check_meeting_subject(self):
+        for record in self:
+            if not record.meeting_subject:
+                raise ValidationError("Please enter meeting subject")
+
+    @api.constrains("room_id")
+    def _check_room_id(self):
+        for record in self:
+            if not record.room_id:
+                raise ValidationError("Please select a room")
+
     @api.constrains("start_date", "end_date")
     def _check_date(self):
         for schedule in self:
@@ -146,12 +163,6 @@ class MeetingSchedule(models.Model):
                 and schedule.start_date.date() != schedule.end_date.date()
             ):
                 raise ValidationError("Start and end dates must be the same day")
-
-    # @api.constrains("duration")
-    # def _check_date(self):
-    #     for schedule in self:
-    #         if schedule.duration < 1:
-    #             raise ValidationError("Duration must be at least 1 hour")
 
     @api.constrains("start_date")
     def _check_start_date(self):
@@ -235,15 +246,6 @@ class MeetingSchedule(models.Model):
                 schedule.end_date = adjusted_datetime
 
     # Business Logic Methods
-    def action_delete_many(self):
-            return {
-                "name": "Select action",
-                "res_model": "transient.model",
-                "view_mode": "form",
-                "target": "new",
-                "type": "ir.actions.act_window",
-            }
-
     def create_daily(self):
         start_datetime = fields.Datetime.from_string(self.start_date)
         end_datetime = fields.Datetime.from_string(self.end_date)
@@ -289,8 +291,7 @@ class MeetingSchedule(models.Model):
                         "room_id": self.room_id.id,
                         "company_id": self.company_id.id,
                         "user_id": self.user_id.id,
-                        "parent_ids": self.id,
-                        "is_parent": False,
+                        "action": self.action,
                     }
                 )
 
@@ -335,8 +336,7 @@ class MeetingSchedule(models.Model):
                                 "duration": self.duration,
                                 "user_id": schedule.user_id.id,
                                 "repeat_weekly": 0,
-                                "parent_ids": schedule.id,
-                                "is_parent": False,
+                                "action": self.action,
                             }
                         )
                 schedules_to_create.extend(new_schedules)
@@ -353,22 +353,57 @@ class MeetingSchedule(models.Model):
             start_date = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S")
         return start_date < fields.Datetime.now()
 
+    def show_notification(self, message):
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "type": "success",
+                "message": message,
+                "sticky": False,
+                'next': {'type': 'ir.actions.act_window_close'},
+            },
+        }
+
     # CRUD Methods
     @api.model
     def create(self, vals):
-        meeting_schedule = super(MeetingSchedule, self).create(vals)
         start_date = vals.get("start_date")
+        if vals.get("action") == "create":
+            meeting_schedule = super(MeetingSchedule, self).create(vals)
 
-        if not self._check_is_hr() and self._check_is_past_date(start_date):
-            raise ValidationError("Start date cannot be in the past")
+            if not self._check_is_hr() and self._check_is_past_date(start_date):
+                raise ValidationError("Start date cannot be in the past")
 
-        meeting_type = vals.get("meeting_type")
-        monday = vals.get("monday")
-        if meeting_type == "daily":
-            meeting_schedule.create_daily()
-        elif meeting_type == "weekly":
-            meeting_schedule.create_weekly()
-        return meeting_schedule
+            meeting_type = vals.get("meeting_type")
+            if meeting_type == "daily":
+                meeting_schedule.create_daily()
+            elif meeting_type == "weekly":
+                meeting_schedule.create_weekly()
+            return meeting_schedule
+        else:
+            if self._check_is_hr() and vals.get("include_other") == True:
+                record_to_detele = self.env["meeting.schedule"].search(
+                    [
+                        ("start_date", ">=", start_date),
+                        ("end_date", "<=", vals.get("end_date")),
+                    ]
+                )
+            else:
+                record_to_detele = self.env["meeting.schedule"].search(
+                    [
+                        ("start_date", ">=", start_date),
+                        ("end_date", "<=", vals.get("end_date")),
+                        ("user_id", "=", self.env.uid),
+                    ]
+                )
+            if record_to_detele:
+                deleted_count = len(record_to_detele)
+                record_to_detele.unlink()
+                message = f"{deleted_count} record(s) deleted."
+                self.show_notification(message)
+            vals = None
+            return super(MeetingSchedule, self).create(vals)
 
     def write(self, vals):
         for record in self:
@@ -409,7 +444,3 @@ class MeetingSchedule(models.Model):
             ):
                 raise ValidationError("Cannot delete ongoing or finished meetings.")
         return super(MeetingSchedule, self).unlink()
-
-    def save(self):
-        self.env.cr.commit()
-        return {'type': 'ir.actions.act_window_close'}
