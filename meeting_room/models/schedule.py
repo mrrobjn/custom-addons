@@ -126,6 +126,27 @@ class MeetingSchedule(models.Model):
                 duration = int(record.end_time) - int(record.start_time)
                 record.duration = duration
 
+    @api.depends("start_date", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    def _check_start_date(self):
+        for record in self:
+            start_datetime = fields.Datetime.from_string(record.start_date)
+            weekday_mapping = {
+                0: ("Monday", record.monday),
+                1: ("Tuesday", record.tuesday),
+                2: ("Wednesday", record.wednesday),
+                3: ("Thursday", record.thursday),
+                4: ("Friday", record.friday),
+                5: ("Saturday", record.saturday),
+                6: ("Sunday", record.sunday),
+            }
+            weekday_name, allowed = weekday_mapping.get(start_datetime.weekday())
+
+            if not allowed and record.meeting_type != "normal":
+                print(weekday_mapping)
+                raise ValidationError(
+                    f"Start date cannot be scheduled on {weekday_name}."
+                )
+
     # Constraints
     # @api.constrains("duration")
     # def _check_date(self):
@@ -163,26 +184,6 @@ class MeetingSchedule(models.Model):
                 and schedule.start_date.date() != schedule.end_date.date()
             ):
                 raise ValidationError("Start and end dates must be the same day")
-
-    @api.constrains("start_date")
-    def _check_start_date(self):
-        for record in self:
-            start_datetime = fields.Datetime.from_string(record.start_date)
-            weekday_mapping = {
-                0: ("Monday", record.monday),
-                1: ("Tuesday", record.tuesday),
-                2: ("Wednesday", record.wednesday),
-                3: ("Thursday", record.thursday),
-                4: ("Friday", record.friday),
-                5: ("Saturday", record.saturday),
-                6: ("Sunday", record.sunday),
-            }
-            weekday_name, allowed = weekday_mapping.get(start_datetime.weekday())
-
-            if not allowed and record.meeting_type != "normal":
-                raise ValidationError(
-                    f"Start date cannot be scheduled on {weekday_name}."
-                )
 
     @api.constrains("repeat_weekly")
     def _check_max_value(self):
