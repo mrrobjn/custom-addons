@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <odoo>
-
     <record id="schedule_view_calendar" model="ir.ui.view">
         <field name="name">meeting.schedule.calendar</field>
         <field name="model">meeting.schedule</field>
@@ -9,7 +8,7 @@
                 string="Booking Schedule"
                 date_start="start_date"
                 date_stop="end_date"
-                mode="month"
+                mode="week"
                 color="room_id"
                 date_delay="duration"
                 quick_add="false"
@@ -19,8 +18,9 @@
                 <field name="meeting_subject" />
                 <field name="start_date" />
                 <field name="end_date" />
-                <field name="user_id" filters="1" />
+                <field name="user_id" filters="1" avatar_field="avatar_128" />
                 <field name="room_id" filters="1" />
+                <field name="parent_ids" attrs="{'invisible': [('parent_ids', '=', False)]}" />
             </calendar>
         </field>
     </record>
@@ -63,9 +63,13 @@
                                         </span>
                                     </div>
                                 </div>
-                                <div>
-                                    <i class="fa fa-user"></i>
-                                    <span>
+                                <div style="display: flex;">
+                                    <!-- <i class="fa fa-user"></i> -->
+                                    <img
+                                        t-att-src="kanban_image('res.users', 'avatar_128', record.user_id.raw_value)"
+                                        class="oe_kanban_image resized-image"
+                                    />
+                                    <span style="height: 100%; display: flex; align-item: center;">
                                         <field name="user_id" />
                                     </span>
                                 </div>
@@ -82,12 +86,13 @@
         <field name="model">meeting.schedule</field>
         <field name="arch" type="xml">
             <tree string="Schedules">
+                <field name="meeting_subject" />
                 <field name="name" />
                 <field name="start_date" />
                 <field name="end_date" />
                 <field name="duration" />
+                <field name="user_id" widget="many2one_avatar_user" />
                 <field name="company_id" optional="show" />
-                <field name="user_id" />
             </tree>
         </field>
     </record>
@@ -96,7 +101,7 @@
         <field name="name">meeting.schedule.form</field>
         <field name="model">meeting.schedule</field>
         <field name="arch" type="xml">
-            <form string="">
+            <form string="New Meeting">
                 <sheet>
                     <div class="oe_title">
                         <label for="meeting_subject"></label>
@@ -105,36 +110,51 @@
                         </h1>
                     </div>
                     <group>
-                        <field name="description"></field>
-                    </group>
-                    <group>
                         <group>
                             <field name="meeting_type"></field>
-
+                            <field name="room_id"></field>
                         </group>
                         <group>
-                            <field name="room_id"></field>
+                            <field name="user_id" avatar_field="avatar_128" readonly="1"></field>
+                            <field name="parent_ids" attrs="{'invisible': [('parent_ids', '=', False)]}" readonly="1"></field>
                         </group>
                     </group>
                     <group>
                         <group>
-                            <field name="start_date"
-                                attrs="{'invisible': [('end_daily', '!=', False)]}" />
-                            <field name="end_date"
-                                attrs="{'invisible': [('end_daily', '!=', False)]}" />
-                            <field name="start_daily" />
-                            <field name="end_daily" />
-                            <field name="start_time" />
-                            <field name="end_time" />
+                            <field name="start_date" />
+                            <field name="end_date" />
+                            <field name="start_daily" invisible="1" />
+                            <field name="end_daily" invisible="1" />
+                            <field name="start_time" invisible="1" />
+                            <field name="end_time" invisible="1" />
                         </group>
-
                         <group>
                             <field name="duration"></field>
                             <field name="repeat_weekly"
                                 attrs="{'invisible': [('meeting_type', '!=', 'weekly')]}"></field>
                         </group>
                     </group>
+                    <group attrs="{'invisible': [('meeting_type', '=', 'normal')]}">
+                        <group>
+                            <field name="monday" />
+                            <field name="tuesday" />
+                            <field name="wednesday" />
+                            <field name="thursday" />
+                        </group>
+                        <group>
+                            <field name="friday" />
+                            <field name="saturday" />
+                            <field name="sunday" />
+                        </group>
+                    </group>
+                    <group>
+                        <field name="description"></field>
+                    </group>
                 </sheet>
+                <footer>
+                    <button string="Save" type="object" name="save" class="oe_highlight"/>
+                    <button string="Discard" special="cancel" type="cancel" name="discard"/>
+                </footer>
             </form>
         </field>
     </record>
@@ -144,7 +164,8 @@
         <field name="model">meeting.schedule</field>
         <field name="arch" type="xml">
             <search string="">
-                <field name="meeting_subject" string="Meeting Subject" />
+                <field name="name"
+                    filter_domain="['|', ('meeting_subject', 'ilike', self), ('user_id.name', 'ilike', self)]"></field>
                 <group string="Group By">
                     <filter string="Room" name="group_by_room" context="{'group_by': 'room_id'}" />
                 </group>

@@ -11,6 +11,11 @@
     "category": "Uncategorized",
     "version": "0.1",
     "depends": ["mail"],
+    "assets": {
+        "web.assets_backend": [
+            "meeting_room/static/src/css/meeting_room.css",
+        ],
+    },
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",

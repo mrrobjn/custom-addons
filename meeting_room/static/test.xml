@@ -1,0 +1,8 @@
+<odoo>
+    <t t-extend="CalendarView.event.popover">
+        <t t-jquery=".o_cw_popover_edit" t-operation="replace">
+        </t>
+        <t t-jquery=".o_cw_popover_delete" t-operation="replace">
+        </t>
+    </t>
+</odoo>
