@@ -12,7 +12,6 @@
                 color="room_id"
                 date_delay="duration"
                 quick_add="false"
-                form_view_id="%(meeting_room.meeting_view_form)d"
                 event_open_popup="true"
             >
                 <field name="meeting_subject" />
@@ -103,6 +102,15 @@
             <form string="New Meeting">
                 <sheet>
                     <group>
+                        <div class="d-flex align-items-baseline">
+                            <field name="partner_ids" widget="many2manyattendee"
+                                placeholder="Select attendees..."
+                                class="oe_inline o_calendar_attendees"
+                            />                          
+                            <div name="send_buttons" class="sm-2">
+                                <button name="action_open_composer" help="Send Email to attendees" type="object" string=" EMAIL" icon="fa-envelope"  attrs="{'action': 'action_action_open_composer'}"/>
+                            </div>
+                        </div>
                         <group>
                             <field name="action" />
                         </group>
@@ -160,7 +168,38 @@
             </form>
         </field>
     </record>
+    <record id="email_template_name" model="mail.template">
+        <field name="name">EMAIL TEMPLATE NAME</field>
+        <field name="model_id" ref="meeting_room.model_meeting_schedule"/>
+        <field name="auto_delete" eval="True"/>
+        <field name="email_from">{{object.create_uid.email_formatted or ''}}</field>
+        <field name="email_to">{{', '.join(object.partner_ids.mapped('email')) or ''}}</field>
+        <field name="body_html" type="html">
+         
+            <p>Dear Sir/Madam,</p>
+            <p>I hope this message finds you well. We are excited to invite you to our upcoming Zoom meeting, where we will discuss important matters and collaborate on upcoming projects. 
+            Below are the details for the meeting:
+        </p>
+                <p>
+                    Datetime: <span t-field="object.start_date"/>
+                </p>
+                    <p>
+                    Agenda: <span t-field="object.description"/>
 
+                </p>
+                <p> Your active participation and input are highly valued as we strive to move forward as a cohesive team. Please make sure to mark your calendars accordingly and join the meeting promptly at the scheduled time.
+
+                </p><p>If you have any questions or specific topics you would like to address during the meeting, please feel free to reach out to me beforehand.
+                
+                </p><p>Looking forward to seeing you all there!
+                </p><p>
+                Best regards,
+                </p>
+           
+           
+        </field>
+        
+    </record>
     <record id="schedule_view_search" model="ir.ui.view">
         <field name="name">schedule.patient.search</field>
         <field name="model">meeting.schedule</field>

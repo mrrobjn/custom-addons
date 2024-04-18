@@ -444,3 +444,29 @@ class MeetingSchedule(models.Model):
             ):
                 raise ValidationError("Cannot delete ongoing or finished meetings.")
         return super(MeetingSchedule, self).unlink()
+    partner_ids = fields.Many2many(
+        'res.partner',
+        string='Attendees', )
+    def action_open_composer(self):
+        template_id = self.env['ir.model.data']._xmlid_to_res_id('meeting_room.email_template_name', raise_if_not_found=False)
+        composition_mode = self.env.context.get('composition_mode', 'comment')
+        compose_ctx = dict(
+            default_composition_mode=composition_mode,
+            default_model='meeting.schedule',
+            default_res_ids=self.ids,
+            default_use_template=bool(template_id),
+            default_template_id=template_id,
+            default_partner_ids=self.partner_ids.ids,
+            mail_tz=self.env.user.tz,
+        )
+        return {
+            'type': 'ir.actions.act_window',
+            'name': ('Contact Attendees'),
+            'view_mode': 'form',
+            'res_model': 'mail.compose.message',
+            'views': [(False, 'form')],
+            'view_id': False,
+            'target': 'new',
+            'context': compose_ctx,
+        }
+        
