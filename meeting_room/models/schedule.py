@@ -29,7 +29,6 @@ class MeetingSchedule(models.Model):
         string="Start datetime",
         default=fields.Date.context_today,
     )
-
     end_date = fields.Datetime(string="End datetime", default=fields.Date.context_today)
     action = fields.Selection(
         selection=[
@@ -84,8 +83,19 @@ class MeetingSchedule(models.Model):
         string="Include other user's meetings", default=False
     )
     is_edit = fields.Boolean(default=False)
+    check_access_team_id = fields.Boolean(
+        "Check Access", compute="_compute_access_team_id"
+    )
 
-    # Computed Fields
+    # Depend Fields
+    @api.depends("user_id")
+    def _compute_access_team_id(self):
+        for rec in self:
+            if not rec._check_is_hr() and rec.user_id.id != self.env.uid:
+                rec.check_access_team_id = False
+            else:
+                rec.check_access_team_id = True
+
     @api.depends("name")
     def _compute_meeting_name(self):
         for record in self:
