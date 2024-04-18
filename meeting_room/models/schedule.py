@@ -25,27 +25,12 @@ class MeetingSchedule(models.Model):
             ("weekly", "Weekly Meeting"),
         ],
     )
-    # start_daily = fields.Date(string="Start date", default=fields.Date.context_today)
-    # end_daily = fields.Date(string="End date", default=fields.Date.context_today)
-
     start_date = fields.Datetime(
         string="Start datetime",
         default=fields.Date.context_today,
     )
 
     end_date = fields.Datetime(string="End datetime", default=fields.Date.context_today)
-    # hours_selection = [
-    #     (str(hour).zfill(2), "{:02d}:00".format(hour)) for hour in range(24)
-    # ]
-
-    # start_time = fields.Selection(
-    #     selection=hours_selection,
-    #     string="Start time",
-    # )
-    # end_time = fields.Selection(
-    #     selection=hours_selection,
-    #     string="End time",
-    # )
     action = fields.Selection(
         selection=[
             ("create", "Create Meeting"),
@@ -151,7 +136,7 @@ class MeetingSchedule(models.Model):
     @api.constrains("duration")
     def _check_duration(self):
         for schedule in self:
-            if schedule.duration < 0.15:
+            if schedule.duration < 0.25:
                 raise ValidationError("A meeting must be at least 15 minutes")
 
     @api.constrains("start_date", "end_date")
@@ -198,7 +183,7 @@ class MeetingSchedule(models.Model):
                         "The room is already booked for this time period."
                     )
 
-    @api.onchange("start_date", "end_date")
+    @api.depends("start_date", "end_date", "duration")
     def _compute_duration(self):
         for record in self:
             if record.start_date and record.end_date:
@@ -217,43 +202,6 @@ class MeetingSchedule(models.Model):
 
                 record.duration = duration_hours
 
-    # @api.onchange("start_date")
-    # def _onchange_start_date(self):
-    #     for schedule in self:
-    #         if schedule.start_date:
-    #             adjusted_start_date = schedule.start_date + timedelta(hours=7)
-    #             schedule.start_daily = fields.Date.to_string(adjusted_start_date.date())
-    #             schedule.start_time = adjusted_start_date.strftime("%H")
-
-    # @api.onchange("end_date")
-    # def _onchange_end_date(self):
-    #     for schedule in self:
-    #         if schedule.end_date:
-    #             adjusted_end_date = schedule.end_date + timedelta(hours=7)
-    #             schedule.end_daily = fields.Date.to_string(adjusted_end_date.date())
-    #             schedule.end_time = adjusted_end_date.strftime("%H")
-    #             print(schedule.end_time)
-
-    # @api.onchange("start_daily", "start_time")
-    # def _onchange_date_start_time(self):
-    #     for schedule in self:
-    #         if schedule.start_daily and schedule.start_time:
-    #             time_obj = datetime.strptime(schedule.start_time, "%H").time()
-    #             date_obj = fields.Date.from_string(schedule.start_daily)
-    #             combined_datetime = datetime.combine(date_obj, time_obj)
-    #             adjusted_datetime = combined_datetime - timedelta(hours=7)
-    #             schedule.start_date = adjusted_datetime
-
-    # @api.onchange("end_daily", "end_time")
-    # def _onchange_date_end_time(self):
-    #     for schedule in self:
-    #         if schedule.end_daily and schedule.end_time:
-    #             time_obj = datetime.strptime(schedule.end_time, "%H").time()
-    #             date_obj = fields.Date.from_string(schedule.end_daily)
-    #             combined_datetime = datetime.combine(date_obj, time_obj)
-    #             adjusted_datetime = combined_datetime - timedelta(hours=7)
-    #             schedule.end_date = adjusted_datetime
-
     # Business Logic Methods
     def create_daily(self):
         start_datetime = fields.Datetime.from_string(self.start_date)
@@ -263,7 +211,7 @@ class MeetingSchedule(models.Model):
         self.write(
             {
                 "end_date": fields.Datetime.to_string(end_date),
-                "end_daily": self.start_daily,
+                # "end_daily": self.start_daily,
             }
         )
         weekday_attributes = [
@@ -293,8 +241,6 @@ class MeetingSchedule(models.Model):
                         "end_date": fields.Datetime.to_string(
                             datetime.combine(meeting_date.date(), end_datetime.time())
                         ),
-                        # "start_time": self.start_time,
-                        # "end_time": self.end_time,
                         "duration": self.duration,
                         "room_id": self.room_id.id,
                         "company_id": self.company_id.id,
@@ -337,8 +283,6 @@ class MeetingSchedule(models.Model):
                                 "start_date": current_date,
                                 "end_date": current_date
                                 + timedelta(hours=self.duration),
-                                # "start_time": schedule.start_time,
-                                # "end_time": schedule.end_time,
                                 "meeting_type": schedule.meeting_type,
                                 "room_id": schedule.room_id.id,
                                 "company_id": schedule.company_id.id,
@@ -389,10 +333,9 @@ class MeetingSchedule(models.Model):
             meeting_type = vals.get("meeting_type")
             if meeting_type == "daily":
                 meeting_schedule.create_daily()
-                return meeting_schedule
             elif meeting_type == "weekly":
                 meeting_schedule.create_weekly()
-                return meeting_schedule
+            return meeting_schedule
         else:
             if self._check_is_hr() and vals.get("include_other") == True:
                 record_to_detele = self.env["meeting.schedule"].search(
@@ -420,7 +363,6 @@ class MeetingSchedule(models.Model):
     def write(self, vals):
         for record in self:
             start_date = vals.get("start_date")
-            end_date = vals.get("end_date")
 
             if not record._check_is_hr():
                 if self._check_is_past_date(record.start_date):
@@ -432,21 +374,6 @@ class MeetingSchedule(models.Model):
                 raise ValidationError("You cannot edit the meeting type.")
             if "repeat_weekly" in vals:
                 raise ValidationError("You cannot edit the repeat weekly.")
-
-            if start_date:
-                start_date = parser.parse(start_date).date()
-            if end_date:
-                end_date = parser.parse(end_date).date()
-            if start_date:
-                self.write(
-                    {
-                        "start_daily": fields.Date.to_string(start_date),
-                        "end_daily": (
-                            fields.Date.to_string(end_date) if end_date else False
-                        ),
-                    }
-                )
-
         return super(MeetingSchedule, self).write(vals)
 
     def unlink(self):
