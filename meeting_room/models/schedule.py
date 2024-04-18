@@ -1,8 +1,10 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, tools
 from odoo.exceptions import ValidationError
 from datetime import timedelta, datetime
 from pytz import timezone
 from dateutil import parser
+from collections import defaultdict
+import base64
 
 
 class MeetingSchedule(models.Model):
@@ -99,6 +101,74 @@ class MeetingSchedule(models.Model):
     include_other = fields.Boolean(
         string="Include other user's meetings", default=False
     )
+
+    #for add file
+
+    attachment = fields.Binary(
+        compute="_compute_content",
+        inverse="_inverse_content",
+        attachment=False,
+        prefetch=False,
+        required=True,
+        store=False,
+    )
+    content_binary = fields.Binary(attachment=False, prefetch=False, invisible=True)
+    content_file = fields.Binary(attachment=True, prefetch=False, invisible=True)
+    attachment_id = fields.Many2one(
+        comodel_name="ir.attachment",
+        string="Attachment File",
+        prefetch=False,
+        invisible=True,
+        ondelete="cascade",
+    )
+    filename = fields.Char('Attachment Name')
+    hide_attachment_field = fields.Boolean(compute='_compute_hide_attachment_field', string="Hide Attachment Field")
+    # upload + download document
+    def _inverse_content(self):
+        updates = defaultdict(set)
+        for record in self:
+            values = self._get_content_inital_vals()
+            values = record._update_content_vals(values)
+            updates[tools.frozendict(values)].add(record.id)
+        with self.env.norecompute():
+            for vals, ids in updates.items():
+                self.browse(ids).write(dict(vals))
+
+    @api.depends("content_binary", "content_file", "attachment_id")
+    def _compute_content(self):
+        for record in self:
+            if record.content_file:
+                context = {"base64": True}
+                record.attachment = record.with_context(**context).content_file
+            elif record.content_binary:
+                record.attachment = (
+                    base64.b64encode(record.content_binary)
+                )
+            elif record.attachment_id:
+                context = {"base64": True}
+                record.attachment = record.with_context(**context).attachment_id.datas
+
+    @api.model
+    def _get_content_inital_vals(self):
+        return {"content_binary": False, "content_file": False}
+
+    def _update_content_vals(self, vals):
+        new_vals = vals.copy()
+        new_vals["content_file"] = self.attachment
+
+        return new_vals
+
+    #end it
+    # check user
+    
+
+    @api.depends('user_id')
+    def _compute_hide_attachment_field(self):
+        for schedule in self:
+            schedule.hide_attachment_field = (schedule.user_id.id != self.env.user.id)
+
+
+                
 
     # Computed Fields
     @api.depends("name")

@@ -12,7 +12,7 @@
                 color="room_id"
                 date_delay="duration"
                 quick_add="false"
-                form_view_id="%(meeting_room.meeting_view_form)d"
+                
                 event_open_popup="true"
             >
                 <field name="meeting_subject" />
@@ -153,6 +153,19 @@
                             <field name="sunday" />
                         </group>
                     </group>
+
+                    <group attrs="{'invisible': [('hide_attachment_field', '=', True)]}" >
+                        
+                            <field name="attachment" filename="filename" mimetype="mimetype" widget="preview_binary" 
+                                />
+                        <field name="filename" invisible="1"/>
+                        <field name="hide_attachment_field" invisible="1"/>
+                    </group>
+                    <group attrs="{'invisible': [('hide_attachment_field', '=', False)]}">
+                        <field name="attachment" filename="filename" mimetype="mimetype" widget="preview_binary" readonly="1"/>
+                    </group>
+                   
+
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <field name="description"></field>
                     </group>
