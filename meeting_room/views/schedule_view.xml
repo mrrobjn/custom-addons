@@ -102,8 +102,8 @@
         <field name="arch" type="xml">
             <form string="New Meeting">
                 <sheet>
-                    <group>
-                        <group attrs="{'invisible':[('is_edit', '=', True)]}">
+                    <group attrs="{'invisible':[('is_edit', '=', True)]}">
+                        <group>
                             <field name="action" />
                         </group>
                     </group>
@@ -174,7 +174,7 @@
                         </group>
                     </group>
                     <!-- attachment -->
-                    <group attrs="{'invisible': [('hide_attachment_field', '=', True)]}">
+                    <!-- <group attrs="{'invisible': [('hide_attachment_field', '=', True)]}">
                         <field name="attachment" filename="filename" mimetype="mimetype"
                             widget="preview_binary"
                         />
@@ -184,7 +184,7 @@
                     <group attrs="{'invisible': [('hide_attachment_field', '=', False)]}">
                         <field name="attachment" filename="filename" mimetype="mimetype"
                             widget="preview_binary" readonly="1" />
-                    </group>
+                    </group> -->
                     <!-- attachment -->
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <field name="description"

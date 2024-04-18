@@ -4,6 +4,7 @@ from datetime import timedelta, datetime
 from pytz import timezone
 import base64
 from collections import defaultdict
+import calendar
 
 
 class MeetingSchedule(models.Model):
@@ -132,7 +133,7 @@ class MeetingSchedule(models.Model):
             elif record.attachment_id:
                 context = {"base64": True}
                 record.attachment = record.with_context(**context).attachment_id.datas
-                
+
     @api.model
     def _get_content_inital_vals(self):
         return {"content_binary": False, "content_file": False}
@@ -142,10 +143,40 @@ class MeetingSchedule(models.Model):
         new_vals["content_file"] = self.attachment
         return new_vals
 
-    @api.depends('user_id')
+    @api.depends(
+        "start_date",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    )
+    def _check_start_date(self):
+        print("checked")
+        for record in self:
+            start_datetime = fields.Datetime.from_string(record.start_date)
+            weekday_mapping = {
+                0: ("Monday", record.monday),
+                1: ("Tuesday", record.tuesday),
+                2: ("Wednesday", record.wednesday),
+                3: ("Thursday", record.thursday),
+                4: ("Friday", record.friday),
+                5: ("Saturday", record.saturday),
+                6: ("Sunday", record.sunday),
+            }
+            weekday_name, allowed = weekday_mapping.get(start_datetime.weekday())
+            if not allowed and record.meeting_type != "normal":
+                raise ValidationError(
+                    f"Start date cannot be scheduled on {weekday_name}."
+                )
+
+    @api.depends("user_id")
     def _compute_hide_attachment_field(self):
         for schedule in self:
-            schedule.hide_attachment_field = (schedule.user_id.id != self.env.user.id)
+            schedule.hide_attachment_field = schedule.user_id.id != self.env.user.id
+
     @api.depends("user_id")
     def _compute_access_team_id(self):
         for rec in self:
@@ -171,34 +202,6 @@ class MeetingSchedule(models.Model):
                 record.day = date_obj.strftime("%-d")
                 record.month = date_obj.strftime("%b %Y")
                 record.time = date_obj.strftime("%H:%M")
-
-    @api.depends(
-        "start_date",
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-        "sunday",
-    )
-    def _check_start_date(self):
-        for record in self:
-            start_datetime = fields.Datetime.from_string(record.start_date)
-            weekday_mapping = {
-                0: ("Monday", record.monday),
-                1: ("Tuesday", record.tuesday),
-                2: ("Wednesday", record.wednesday),
-                3: ("Thursday", record.thursday),
-                4: ("Friday", record.friday),
-                5: ("Saturday", record.saturday),
-                6: ("Sunday", record.sunday),
-            }
-            weekday_name, allowed = weekday_mapping.get(start_datetime.weekday())
-            if not allowed and record.meeting_type != "normal":
-                raise ValidationError(
-                    f"Start date cannot be scheduled on {weekday_name}."
-                )
 
     # Constraints
     @api.constrains("duration")
@@ -251,7 +254,7 @@ class MeetingSchedule(models.Model):
                         "The room is already booked for this time period."
                     )
 
-    @api.depends("start_date", "end_date", "duration")
+    @api.onchange("start_date", "end_date", "duration")
     def _compute_duration(self):
         for record in self:
             if record.start_date and record.end_date:
@@ -279,7 +282,6 @@ class MeetingSchedule(models.Model):
         self.write(
             {
                 "end_date": fields.Datetime.to_string(end_date),
-                # "end_daily": self.start_daily,
             }
         )
         weekday_attributes = [
@@ -387,6 +389,22 @@ class MeetingSchedule(models.Model):
             },
         }
 
+    # def _validate_start_date(self):
+    #     start_datetime = fields.Datetime.from_string(self.start_date)
+    #     weekday_mapping = {
+    #         0: ("Monday", self.monday),
+    #         1: ("Tuesday", self.tuesday),
+    #         2: ("Wednesday", self.wednesday),
+    #         3: ("Thursday", self.thursday),
+    #         4: ("Friday", self.friday),
+    #         5: ("Saturday", self.saturday),
+    #         6: ("Sunday", self.sunday),
+    #     }
+    #     print(weekday_mapping)
+    #     weekday_name, allowed = weekday_mapping.get(start_datetime.weekday())
+    #     if not allowed and self.meeting_type != "normal":
+    #         raise ValidationError(f"Start date cannot be scheduled on {weekday_name}.")
+
     # CRUD Methods
     @api.model
     def create(self, vals):
@@ -397,6 +415,8 @@ class MeetingSchedule(models.Model):
 
             if not self._check_is_hr() and self._check_is_past_date(start_date):
                 raise ValidationError("Start date cannot be in the past")
+
+            # meeting_schedule._validate_start_date()
 
             meeting_type = vals.get("meeting_type")
             if meeting_type == "daily":
