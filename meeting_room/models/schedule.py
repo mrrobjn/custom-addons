@@ -8,7 +8,7 @@ from dateutil import parser
 class MeetingSchedule(models.Model):
     _name = "meeting.schedule"
     _description = "Meeting schedule"
-    _order = "start_date asc"
+    _order = "start_date DESC"
 
     name = fields.Char(
         string="Thumbnail", compute="_compute_meeting_name", required=True
@@ -25,8 +25,8 @@ class MeetingSchedule(models.Model):
             ("weekly", "Weekly Meeting"),
         ],
     )
-    start_daily = fields.Date(string="Start date", default=fields.Date.context_today)
-    end_daily = fields.Date(string="End date", default=fields.Date.context_today)
+    # start_daily = fields.Date(string="Start date", default=fields.Date.context_today)
+    # end_daily = fields.Date(string="End date", default=fields.Date.context_today)
 
     start_date = fields.Datetime(
         string="Start datetime",
@@ -34,19 +34,18 @@ class MeetingSchedule(models.Model):
     )
 
     end_date = fields.Datetime(string="End datetime", default=fields.Date.context_today)
+    # hours_selection = [
+    #     (str(hour).zfill(2), "{:02d}:00".format(hour)) for hour in range(24)
+    # ]
 
-    hours_selection = [
-        (str(hour).zfill(2), "{:02d}:00".format(hour)) for hour in range(24)
-    ]
-
-    start_time = fields.Selection(
-        selection=hours_selection,
-        string="Start time",
-    )
-    end_time = fields.Selection(
-        selection=hours_selection,
-        string="End time",
-    )
+    # start_time = fields.Selection(
+    #     selection=hours_selection,
+    #     string="Start time",
+    # )
+    # end_time = fields.Selection(
+    #     selection=hours_selection,
+    #     string="End time",
+    # )
     action = fields.Selection(
         selection=[
             ("create", "Create Meeting"),
@@ -56,7 +55,7 @@ class MeetingSchedule(models.Model):
         default="create",
         required=True,
     )
-    duration = fields.Integer(
+    duration = fields.Float(
         string="Duration(hour)",
         compute="_compute_duration",
         store=True,
@@ -99,6 +98,7 @@ class MeetingSchedule(models.Model):
     include_other = fields.Boolean(
         string="Include other user's meetings", default=False
     )
+    is_edit = fields.Boolean(default=False)
 
     # Computed Fields
     @api.depends("name")
@@ -119,14 +119,16 @@ class MeetingSchedule(models.Model):
                 record.month = date_obj.strftime("%b %Y")
                 record.time = date_obj.strftime("%H:%M")
 
-    @api.depends("start_time", "end_time")
-    def _compute_duration(self):
-        for record in self:
-            if record.start_time and record.end_time:
-                duration = int(record.end_time) - int(record.start_time)
-                record.duration = duration
-
-    @api.depends("start_date", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    @api.depends(
+        "start_date",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    )
     def _check_start_date(self):
         for record in self:
             start_datetime = fields.Datetime.from_string(record.start_date)
@@ -140,31 +142,17 @@ class MeetingSchedule(models.Model):
                 6: ("Sunday", record.sunday),
             }
             weekday_name, allowed = weekday_mapping.get(start_datetime.weekday())
-
             if not allowed and record.meeting_type != "normal":
-                print(weekday_mapping)
                 raise ValidationError(
                     f"Start date cannot be scheduled on {weekday_name}."
                 )
 
     # Constraints
-    # @api.constrains("duration")
-    # def _check_date(self):
-    #     for schedule in self:
-    #         if schedule.duration < 1:
-    #             raise ValidationError("Duration must be at least 1 hour")
-
-    @api.constrains("meeting_subject")
-    def _check_meeting_subject(self):
-        for record in self:
-            if not record.meeting_subject:
-                raise ValidationError("Please enter meeting subject")
-
-    @api.constrains("room_id")
-    def _check_room_id(self):
-        for record in self:
-            if not record.room_id:
-                raise ValidationError("Please select a room")
+    @api.constrains("duration")
+    def _check_duration(self):
+        for schedule in self:
+            if schedule.duration < 0.15:
+                raise ValidationError("A meeting must be at least 15 minutes")
 
     @api.constrains("start_date", "end_date")
     def _check_date(self):
@@ -210,48 +198,68 @@ class MeetingSchedule(models.Model):
                         "The room is already booked for this time period."
                     )
 
-    @api.onchange("start_date")
-    def _onchange_start_date(self):
-        for schedule in self:
-            if schedule.start_date:
-                adjusted_start_date = schedule.start_date + timedelta(hours=7)
-                schedule.start_daily = fields.Date.to_string(adjusted_start_date.date())
-                schedule.start_time = adjusted_start_date.strftime("%H")
+    @api.onchange("start_date", "end_date")
+    def _compute_duration(self):
+        for record in self:
+            if record.start_date and record.end_date:
+                start_time = record.start_date.time()
+                end_time = record.end_date.time()
 
-    @api.onchange("end_date")
-    def _onchange_end_date(self):
-        for schedule in self:
-            if schedule.end_date:
-                adjusted_end_date = schedule.end_date + timedelta(hours=7)
-                schedule.end_daily = fields.Date.to_string(adjusted_end_date.date())
-                schedule.end_time = adjusted_end_date.strftime("%H")
+                start_seconds = (
+                    start_time.hour * 3600 + start_time.minute * 60 + start_time.second
+                )
+                end_seconds = (
+                    end_time.hour * 3600 + end_time.minute * 60 + end_time.second
+                )
 
-    @api.onchange("start_daily", "start_time")
-    def _onchange_date_start_time(self):
-        for schedule in self:
-            if schedule.start_daily and schedule.start_time:
-                time_obj = datetime.strptime(schedule.start_time, "%H").time()
-                date_obj = fields.Date.from_string(schedule.start_daily)
-                combined_datetime = datetime.combine(date_obj, time_obj)
-                adjusted_datetime = combined_datetime - timedelta(hours=7)
-                schedule.start_date = adjusted_datetime
+                duration_seconds = end_seconds - start_seconds
+                duration_hours = duration_seconds / 3600
 
-    @api.onchange("end_daily", "end_time")
-    def _onchange_date_end_time(self):
-        for schedule in self:
-            if schedule.end_daily and schedule.end_time:
-                time_obj = datetime.strptime(schedule.end_time, "%H").time()
-                date_obj = fields.Date.from_string(schedule.end_daily)
-                combined_datetime = datetime.combine(date_obj, time_obj)
-                adjusted_datetime = combined_datetime - timedelta(hours=7)
-                schedule.end_date = adjusted_datetime
+                record.duration = duration_hours
+
+    # @api.onchange("start_date")
+    # def _onchange_start_date(self):
+    #     for schedule in self:
+    #         if schedule.start_date:
+    #             adjusted_start_date = schedule.start_date + timedelta(hours=7)
+    #             schedule.start_daily = fields.Date.to_string(adjusted_start_date.date())
+    #             schedule.start_time = adjusted_start_date.strftime("%H")
+
+    # @api.onchange("end_date")
+    # def _onchange_end_date(self):
+    #     for schedule in self:
+    #         if schedule.end_date:
+    #             adjusted_end_date = schedule.end_date + timedelta(hours=7)
+    #             schedule.end_daily = fields.Date.to_string(adjusted_end_date.date())
+    #             schedule.end_time = adjusted_end_date.strftime("%H")
+    #             print(schedule.end_time)
+
+    # @api.onchange("start_daily", "start_time")
+    # def _onchange_date_start_time(self):
+    #     for schedule in self:
+    #         if schedule.start_daily and schedule.start_time:
+    #             time_obj = datetime.strptime(schedule.start_time, "%H").time()
+    #             date_obj = fields.Date.from_string(schedule.start_daily)
+    #             combined_datetime = datetime.combine(date_obj, time_obj)
+    #             adjusted_datetime = combined_datetime - timedelta(hours=7)
+    #             schedule.start_date = adjusted_datetime
+
+    # @api.onchange("end_daily", "end_time")
+    # def _onchange_date_end_time(self):
+    #     for schedule in self:
+    #         if schedule.end_daily and schedule.end_time:
+    #             time_obj = datetime.strptime(schedule.end_time, "%H").time()
+    #             date_obj = fields.Date.from_string(schedule.end_daily)
+    #             combined_datetime = datetime.combine(date_obj, time_obj)
+    #             adjusted_datetime = combined_datetime - timedelta(hours=7)
+    #             schedule.end_date = adjusted_datetime
 
     # Business Logic Methods
     def create_daily(self):
         start_datetime = fields.Datetime.from_string(self.start_date)
         end_datetime = fields.Datetime.from_string(self.end_date)
 
-        end_date = start_datetime + timedelta(hours=self.duration)
+        end_date = datetime.combine(start_datetime.date(), end_datetime.time())
         self.write(
             {
                 "end_date": fields.Datetime.to_string(end_date),
@@ -273,7 +281,6 @@ class MeetingSchedule(models.Model):
             start_datetime + timedelta(days=day)
             for day in range(1, (end_datetime - start_datetime).days + 1)
         ]
-
         for meeting_date in meeting_dates:
             if weekday_mapping.get(meeting_date.weekday(), False):
                 self.env["meeting.schedule"].create(
@@ -284,15 +291,16 @@ class MeetingSchedule(models.Model):
                         "meeting_type": self.meeting_type,
                         "start_date": fields.Datetime.to_string(meeting_date),
                         "end_date": fields.Datetime.to_string(
-                            meeting_date + timedelta(hours=self.duration)
+                            datetime.combine(meeting_date.date(), end_datetime.time())
                         ),
-                        "start_time": self.start_time,
-                        "end_time": self.end_time,
+                        # "start_time": self.start_time,
+                        # "end_time": self.end_time,
                         "duration": self.duration,
                         "room_id": self.room_id.id,
                         "company_id": self.company_id.id,
                         "user_id": self.user_id.id,
                         "action": self.action,
+                        "is_edit": True,
                     }
                 )
 
@@ -329,15 +337,16 @@ class MeetingSchedule(models.Model):
                                 "start_date": current_date,
                                 "end_date": current_date
                                 + timedelta(hours=self.duration),
-                                "start_time": schedule.start_time,
+                                # "start_time": schedule.start_time,
+                                # "end_time": schedule.end_time,
                                 "meeting_type": schedule.meeting_type,
-                                "end_time": schedule.end_time,
                                 "room_id": schedule.room_id.id,
                                 "company_id": schedule.company_id.id,
                                 "duration": self.duration,
                                 "user_id": schedule.user_id.id,
                                 "repeat_weekly": 0,
                                 "action": self.action,
+                                "is_edit": True,
                             }
                         )
                 schedules_to_create.extend(new_schedules)
@@ -362,7 +371,7 @@ class MeetingSchedule(models.Model):
                 "type": "success",
                 "message": message,
                 "sticky": False,
-                'next': {'type': 'ir.actions.act_window_close'},
+                "next": {"type": "ir.actions.act_window_close"},
             },
         }
 
@@ -371,6 +380,7 @@ class MeetingSchedule(models.Model):
     def create(self, vals):
         start_date = vals.get("start_date")
         if vals.get("action") == "create":
+            vals["is_edit"] = True
             meeting_schedule = super(MeetingSchedule, self).create(vals)
 
             if not self._check_is_hr() and self._check_is_past_date(start_date):
@@ -379,9 +389,10 @@ class MeetingSchedule(models.Model):
             meeting_type = vals.get("meeting_type")
             if meeting_type == "daily":
                 meeting_schedule.create_daily()
+                return meeting_schedule
             elif meeting_type == "weekly":
                 meeting_schedule.create_weekly()
-            return meeting_schedule
+                return meeting_schedule
         else:
             if self._check_is_hr() and vals.get("include_other") == True:
                 record_to_detele = self.env["meeting.schedule"].search(
@@ -445,3 +456,33 @@ class MeetingSchedule(models.Model):
             ):
                 raise ValidationError("Cannot delete ongoing or finished meetings.")
         return super(MeetingSchedule, self).unlink()
+
+    partner_ids = fields.Many2many(
+        "res.partner",
+        string="Attendees",
+    )
+
+    def action_open_composer(self):
+        template_id = self.env["ir.model.data"]._xmlid_to_res_id(
+            "meeting_room.email_template_name", raise_if_not_found=False
+        )
+        composition_mode = self.env.context.get("composition_mode", "comment")
+        compose_ctx = dict(
+            default_composition_mode=composition_mode,
+            default_model="meeting.schedule",
+            default_res_ids=self.ids,
+            default_use_template=bool(template_id),
+            default_template_id=template_id,
+            default_partner_ids=self.partner_ids.ids,
+            mail_tz=self.env.user.tz,
+        )
+        return {
+            "type": "ir.actions.act_window",
+            "name": ("Contact Attendees"),
+            "view_mode": "form",
+            "res_model": "mail.compose.message",
+            "views": [(False, "form")],
+            "view_id": False,
+            "target": "new",
+            "context": compose_ctx,
+        }

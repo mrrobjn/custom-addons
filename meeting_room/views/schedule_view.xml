@@ -12,8 +12,8 @@
                 color="room_id"
                 date_delay="duration"
                 quick_add="false"
-                form_view_id="%(meeting_room.meeting_view_form)d"
                 event_open_popup="true"
+                delete="0"
             >
                 <field name="meeting_subject" />
                 <field name="start_date" />
@@ -28,7 +28,8 @@
         <field name="name">schedule.view.kanban</field>
         <field name="model">meeting.schedule</field>
         <field name="arch" type="xml">
-            <kanban>
+            <kanban group_create="false" quick_create="false" group_edit="false"
+                group_delete="false">
                 <templates>
                     <t t-name="kanban-box">
                         <div
@@ -103,40 +104,54 @@
             <form string="New Meeting">
                 <sheet>
                     <group>
+                        <div class="d-flex align-items-baseline"
+                            attrs="{'invisible': [('action', '=', 'delete')]}">
+                            <label for="partner_ids" />
+                            <field name="partner_ids" widget="many2manyattendee"
+                                placeholder="Select attendees..."
+                                class="oe_inline o_calendar_attendees"
+                            />
+                            <div name="send_buttons" class="sm-2">
+                                <button name="action_open_composer" help="Send Email to attendees"
+                                    type="object" string=" EMAIL" icon="fa-envelope"
+                                    attrs="{'action': 'action_action_open_composer'}" />
+                            </div>
+                        </div>
                         <group>
                             <field name="action" />
                         </group>
                     </group>
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
-                        <field name="meeting_subject" />
+                        <field name="meeting_subject"
+                            attrs="{'required':[('action','=','create')]}" />
                     </group>
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <group>
                             <field name="meeting_type"></field>
-                            <field name="room_id"></field>
+                            <field name="room_id" attrs="{'required':[('action','=','create')]}"></field>
                         </group>
                         <group>
-                            <field name="user_id" avatar_field="avatar_128" readonly="1"></field>
+                            <field name="user_id" readonly="1"></field>
                         </group>
                     </group>
                     <group>
                         <group>
                             <field name="start_date" />
                             <field name="end_date" />
-                            <field name="start_daily" invisible="1" />
+                            <!-- <field name="start_daily" invisible="1" />
                             <field name="end_daily" invisible="1" />
                             <field name="start_time" invisible="1" />
-                            <field name="end_time" invisible="1" />
+                            <field name="end_time" invisible="1" /> -->
                         </group>
                         <group attrs="{'invisible': [('action', '=', 'delete')]}">
                             <field name="duration"></field>
                             <field name="repeat_weekly"
                                 attrs="{'invisible': [('meeting_type', '!=', 'weekly')]}"></field>
                         </group>
-                        <group>
+                        <group attrs="{'invisible': [('action', '!=', 'delete')]}">
                             <field name="include_other"
                                 groups="meeting_room.group_meeting_room_hr"
-                                attrs="{'invisible': [('action', '!=', 'delete')]}" />
+                                widget="boolean_toggle" />
                         </group>
                     </group>
                     <group
@@ -172,6 +187,41 @@
                     <filter string="Room" name="group_by_room" context="{'group_by': 'room_id'}" />
                 </group>
             </search>
+        </field>
+    </record>
+
+    <record id="email_template_name" model="mail.template">
+        <field name="name">EMAIL TEMPLATE NAME</field>
+        <field name="model_id" ref="meeting_room.model_meeting_schedule" />
+        <field name="auto_delete" eval="True" />
+        <field name="email_from">{{object.create_uid.email_formatted or ''}}</field>
+        <field name="email_to">{{', '.join(object.partner_ids.mapped('email')) or ''}}</field>
+        <field name="body_html" type="html">
+            <p>Dear Sir/Madam,</p>
+            <p>I hope this message finds you well. We are excited to invite you to our upcoming Zoom
+                meeting, where we will discuss important matters and collaborate on upcoming
+                projects.
+                Below are the details for the meeting:
+            </p>
+            <p> Datetime: <span t-field="object.start_date" />
+            </p>
+            <p> Agenda: <span t-field="object.description" />
+
+            </p>
+            <p> Your active participation and input are highly valued as we strive to move forward
+                as a cohesive team. Please make sure to mark your calendars accordingly and join the
+                meeting promptly at the scheduled time.
+
+            </p>
+            <p>If you have any questions or specific topics you would like to address during the
+                meeting, please feel free to reach out to me beforehand.
+
+            </p>
+            <p>Looking forward to seeing you all there!
+            </p>
+            <p>
+                Best regards,
+            </p>
         </field>
     </record>
 
