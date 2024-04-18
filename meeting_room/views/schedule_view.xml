@@ -174,17 +174,14 @@
                         </group>
                     </group>
                     <!-- attachment -->
-                    <!-- <group attrs="{'invisible': [('hide_attachment_field', '=', True)]}">
+                    <group>
                         <field name="attachment" filename="filename" mimetype="mimetype"
                             widget="preview_binary"
+                            attrs="{'readonly': [('check_access_team_id', '=', False)]}"
                         />
                         <field name="filename" invisible="1" />
-                        <field name="hide_attachment_field" invisible="1" />
+                        <!-- <field name="hide_attachment_field" invisible="1" /> -->
                     </group>
-                    <group attrs="{'invisible': [('hide_attachment_field', '=', False)]}">
-                        <field name="attachment" filename="filename" mimetype="mimetype"
-                            widget="preview_binary" readonly="1" />
-                    </group> -->
                     <!-- attachment -->
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <field name="description"
