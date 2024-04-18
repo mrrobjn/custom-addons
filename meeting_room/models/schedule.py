@@ -1,8 +1,9 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, tools
 from odoo.exceptions import ValidationError
 from datetime import timedelta, datetime
 from pytz import timezone
-from dateutil import parser
+import base64
+from collections import defaultdict
 
 
 class MeetingSchedule(models.Model):
@@ -86,8 +87,65 @@ class MeetingSchedule(models.Model):
     check_access_team_id = fields.Boolean(
         "Check Access", compute="_compute_access_team_id"
     )
+    attachment = fields.Binary(
+        compute="_compute_content",
+        inverse="_inverse_content",
+        attachment=False,
+        prefetch=False,
+        required=True,
+        store=False,
+    )
+    content_binary = fields.Binary(attachment=False, prefetch=False, invisible=True)
+    content_file = fields.Binary(attachment=True, prefetch=False, invisible=True)
+    attachment_id = fields.Many2one(
+        comodel_name="ir.attachment",
+        string="Attachment File",
+        prefetch=False,
+        invisible=True,
+        ondelete="cascade",
+    )
+    filename = fields.Char("Attachment Name")
+    hide_attachment_field = fields.Boolean(
+        compute="_compute_hide_attachment_field", string="Hide Attachment Field"
+    )
+
+    # upload + download document
+    def _inverse_content(self):
+        updates = defaultdict(set)
+        for record in self:
+            values = self._get_content_inital_vals()
+            values = record._update_content_vals(values)
+            updates[tools.frozendict(values)].add(record.id)
+        with self.env.norecompute():
+            for vals, ids in updates.items():
+                self.browse(ids).write(dict(vals))
 
     # Depend Fields
+    @api.depends("content_binary", "content_file", "attachment_id")
+    def _compute_content(self):
+        for record in self:
+            if record.content_file:
+                context = {"base64": True}
+                record.attachment = record.with_context(**context).content_file
+            elif record.content_binary:
+                record.attachment = base64.b64encode(record.content_binary)
+            elif record.attachment_id:
+                context = {"base64": True}
+                record.attachment = record.with_context(**context).attachment_id.datas
+                
+    @api.model
+    def _get_content_inital_vals(self):
+        return {"content_binary": False, "content_file": False}
+
+    def _update_content_vals(self, vals):
+        new_vals = vals.copy()
+        new_vals["content_file"] = self.attachment
+        return new_vals
+
+    @api.depends('user_id')
+    def _compute_hide_attachment_field(self):
+        for schedule in self:
+            schedule.hide_attachment_field = (schedule.user_id.id != self.env.user.id)
     @api.depends("user_id")
     def _compute_access_team_id(self):
         for rec in self:
@@ -379,11 +437,6 @@ class MeetingSchedule(models.Model):
                     raise ValidationError("Cannot edit ongoing or finished meetings")
                 if self._check_is_past_date(start_date):
                     raise ValidationError("Start date cannot be in the past")
-
-            if "meeting_type" in vals:
-                raise ValidationError("You cannot edit the meeting type.")
-            if "repeat_weekly" in vals:
-                raise ValidationError("You cannot edit the repeat weekly.")
         return super(MeetingSchedule, self).write(vals)
 
     def unlink(self):

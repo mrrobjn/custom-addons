@@ -107,7 +107,7 @@
                             <field name="action" />
                         </group>
                     </group>
-                    <group attrs="{'invisible': [('action', '=', 'delete')]}">
+                    <!-- <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <div class="d-flex align-items-baseline">
                             <div class="o_td_label" style="min-width: 150px">
                                 <label for="partner_ids" class="o_form_label o_required_modifier" />
@@ -123,7 +123,7 @@
                                     attrs="{'action': 'action_action_open_composer'}" />
                             </div>
                         </div>
-                    </group>
+                    </group> -->
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <field name="meeting_subject"
                             attrs="{'required':[('action','=','create')],'readonly': [('check_access_team_id', '=', False)]}" />
@@ -150,7 +150,7 @@
                         <group attrs="{'invisible': [('action', '=', 'delete')]}">
                             <field name="duration"></field>
                             <field name="repeat_weekly"
-                                attrs="{'invisible': [('meeting_type', '!=', 'weekly')]}"></field>
+                                attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
                         </group>
                         <group attrs="{'invisible': [('action', '!=', 'delete')]}">
                             <field name="include_other"
@@ -173,6 +173,19 @@
                             <field name="sunday" />
                         </group>
                     </group>
+                    <!-- attachment -->
+                    <group attrs="{'invisible': [('hide_attachment_field', '=', True)]}">
+                        <field name="attachment" filename="filename" mimetype="mimetype"
+                            widget="preview_binary"
+                        />
+                        <field name="filename" invisible="1" />
+                        <field name="hide_attachment_field" invisible="1" />
+                    </group>
+                    <group attrs="{'invisible': [('hide_attachment_field', '=', False)]}">
+                        <field name="attachment" filename="filename" mimetype="mimetype"
+                            widget="preview_binary" readonly="1" />
+                    </group>
+                    <!-- attachment -->
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <field name="description"
                             attrs="{'readonly': [('check_access_team_id', '=', False)]}"></field>
