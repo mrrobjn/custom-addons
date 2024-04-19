@@ -94,7 +94,7 @@ class MeetingSchedule(models.Model):
         inverse="_inverse_content",
         attachment=False,
         prefetch=False,
-        required=True,
+        # required=True,
         store=False,
     )
     content_binary = fields.Binary(attachment=False, prefetch=False, invisible=True)

@@ -107,23 +107,6 @@
                             <field name="action" />
                         </group>
                     </group>
-                    <!-- <group attrs="{'invisible': [('action', '=', 'delete')]}">
-                        <div class="d-flex align-items-baseline">
-                            <div class="o_td_label" style="min-width: 150px">
-                                <label for="partner_ids" class="o_form_label o_required_modifier" />
-                            </div>
-                            <field name="partner_ids" widget="many2manyattendee"
-                                placeholder="Select attendees..."
-                                class="oe_inline o_calendar_attendees"
-                                style="margin-left: 8px"
-                            />
-                            <div name="send_buttons" class="sm-2">
-                                <button name="action_open_composer" help="Send Email to attendees"
-                                    type="object" string=" EMAIL" icon="fa-envelope"
-                                    attrs="{'action': 'action_action_open_composer'}" />
-                            </div>
-                        </div>
-                    </group> -->
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <field name="meeting_subject"
                             attrs="{'required':[('action','=','create')],'readonly': [('check_access_team_id', '=', False)]}" />
@@ -174,7 +157,7 @@
                         </group>
                     </group>
                     <!-- attachment -->
-                    <group>
+                    <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <field name="attachment" filename="filename" mimetype="mimetype"
                             widget="preview_binary"
                             attrs="{'readonly': [('check_access_team_id', '=', False)]}"
@@ -186,6 +169,24 @@
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <field name="description"
                             attrs="{'readonly': [('check_access_team_id', '=', False)]}"></field>
+                    </group>
+                    <group attrs="{'invisible': [('action', '=', 'delete')]}">
+                        <div class="d-flex">
+                            <div class="o_td_label" style="min-width: 150px">
+                                <label for="partner_ids" class="o_form_label o_required_modifier" />
+                            </div>
+                            <field name="partner_ids" widget="many2manyattendee"
+                                placeholder="Select attendees..."
+                                class="oe_inline o_calendar_attendees"
+                                style="margin: 0 8px"
+                                attrs="{'readonly': [('check_access_team_id', '=', False)]}"
+                            />
+                            <div name="send_buttons" class="sm-2">
+                                <button name="action_open_composer" help="Send Email to attendees"
+                                    type="object" string=" EMAIL" icon="fa-envelope"
+                                    attrs="{'action': 'action_action_open_composer', 'invisible': [('check_access_team_id', '=', False)]}" />
+                            </div>
+                        </div>
                     </group>
                 </sheet>
             </form>
