@@ -4,7 +4,10 @@ from datetime import timedelta, datetime
 from pytz import timezone
 import base64
 from collections import defaultdict
-import calendar
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate
+import smtplib
 
 
 class MeetingSchedule(models.Model):
@@ -94,7 +97,6 @@ class MeetingSchedule(models.Model):
         inverse="_inverse_content",
         attachment=False,
         prefetch=False,
-        # required=True,
         store=False,
     )
     content_binary = fields.Binary(attachment=False, prefetch=False, invisible=True)
@@ -110,6 +112,12 @@ class MeetingSchedule(models.Model):
     hide_attachment_field = fields.Boolean(
         compute="_compute_hide_attachment_field", string="Hide Attachment Field"
     )
+
+    partner_ids = fields.Many2many(
+        "res.partner",
+        string="Attendees",
+    )
+    is_partner = fields.Boolean(default=True, compute="check_user_in_partner_ids")
 
     # upload + download document
     def _inverse_content(self):
@@ -135,21 +143,19 @@ class MeetingSchedule(models.Model):
                 context = {"base64": True}
                 record.attachment = record.with_context(**context).attachment_id.datas
 
-    def _get_content_inital_vals(self):
-        return {"content_binary": False, "content_file": False}
-
-    def _update_content_vals(self, vals):
-        new_vals = vals.copy()
-        new_vals["content_file"] = self.attachment
-        return new_vals
+    @api.depends("user_id")
+    def check_user_in_partner_ids(self):
+        for rec in self:
+            rec.is_partner = bool(
+                rec._check_is_hr() or self.env.user.partner_id.id in rec.partner_ids.ids
+            )
 
     @api.depends("user_id")
     def _compute_access_team_id(self):
         for rec in self:
-            if not rec._check_is_hr() and rec.user_id.id != self.env.uid:
-                rec.check_access_team_id = False
-            else:
-                rec.check_access_team_id = True
+            rec.check_access_team_id = bool(
+                rec._check_is_hr() or rec.user_id.id == self.env.uid
+            )
 
     @api.depends("name")
     def _compute_meeting_name(self):
@@ -368,10 +374,44 @@ class MeetingSchedule(models.Model):
             5: ("Saturday", self.saturday),
             6: ("Sunday", self.sunday),
         }
-        print(weekday_mapping)
         weekday_name, allowed = weekday_mapping.get(start_datetime.weekday())
         if not allowed and self.meeting_type != "normal" and self.is_first_tag == True:
             raise ValidationError(f"Start date cannot be scheduled on {weekday_name}.")
+
+    def _get_content_inital_vals(self):
+        return {"content_binary": False, "content_file": False}
+
+    def _update_content_vals(self, vals):
+        new_vals = vals.copy()
+        new_vals["content_file"] = self.attachment
+        return new_vals
+
+    def send_email_to_attendees(self):
+        subject = "Meeting Attendance"
+        sender = self.user_id.email
+        recipients = self.partner_ids.mapped("email")
+
+        start_date = self.start_date
+        date_obj = fields.Datetime.to_string(
+            fields.Datetime.context_timestamp(
+                self, fields.Datetime.from_string(start_date)
+            )
+        )
+
+        body = f"Hello, You are invited to a meeting. Please attend at {date_obj}."
+
+        msg = MIMEMultipart()
+        msg["From"] = sender
+        msg["To"] = ", ".join(recipients)
+        msg["Date"] = formatdate(localtime=True)
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(self.user_id.email, "inmg tuzd nezk juey")
+        server.sendmail(sender, recipients, msg.as_string())
+        server.quit()
+        self._cr.commit()
 
     # CRUD Methods
     @api.model
@@ -391,6 +431,8 @@ class MeetingSchedule(models.Model):
                 meeting_schedule.create_daily()
             elif meeting_type == "weekly":
                 meeting_schedule.create_weekly()
+            if len(vals["partner_ids"][0][2]) > 0:
+                meeting_schedule.send_email_to_attendees()
             return meeting_schedule
         else:
             if self._check_is_hr() and vals.get("include_other") == True:
@@ -408,12 +450,14 @@ class MeetingSchedule(models.Model):
                         ("user_id", "=", self.env.uid),
                     ]
                 )
+            vals = None
             if record_to_detele:
                 deleted_count = len(record_to_detele)
                 record_to_detele.unlink()
                 message = f"{deleted_count} record(s) deleted."
-                self.show_notification(message)
-            vals = None
+                d = super(MeetingSchedule, self).create(vals)
+                d.show_notification(message)
+                return d
             return super(MeetingSchedule, self).create(vals)
 
     def write(self, vals):
@@ -434,33 +478,3 @@ class MeetingSchedule(models.Model):
             ):
                 raise ValidationError("Cannot delete ongoing or finished meetings.")
         return super(MeetingSchedule, self).unlink()
-
-    partner_ids = fields.Many2many(
-        "res.partner",
-        string="Attendees",
-    )
-
-    def action_open_composer(self):
-        template_id = self.env["ir.model.data"]._xmlid_to_res_id(
-            "meeting_room.email_template_name", raise_if_not_found=False
-        )
-        composition_mode = self.env.context.get("composition_mode", "comment")
-        compose_ctx = dict(
-            default_composition_mode=composition_mode,
-            default_model="meeting.schedule",
-            default_res_ids=self.ids,
-            default_use_template=bool(template_id),
-            default_template_id=template_id,
-            default_partner_ids=self.partner_ids.ids,
-            mail_tz=self.env.user.tz,
-        )
-        return {
-            "type": "ir.actions.act_window",
-            "name": ("Contact Attendees"),
-            "view_mode": "form",
-            "res_model": "mail.compose.message",
-            "views": [(False, "form")],
-            "view_id": False,
-            "target": "new",
-            "context": compose_ctx,
-        }
