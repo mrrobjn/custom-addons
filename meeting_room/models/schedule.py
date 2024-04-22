@@ -49,6 +49,11 @@ class MeetingSchedule(models.Model):
         compute="_compute_duration",
         store=True,
     )
+    duration_minutes = fields.Integer(
+        string="Duration(minutes)",
+        compute="_compute_duration_minute",
+        store=True,
+    )
     room_id = fields.Many2one("meeting.room", string="Room name", ondelete="cascade")
     company_id = fields.Many2one(
         "res.company",
@@ -246,6 +251,18 @@ class MeetingSchedule(models.Model):
                 duration_seconds = end_seconds - start_seconds
                 duration_hours = duration_seconds / 3600
                 record.duration = duration_hours
+
+    @api.depends("start_date", "end_date")
+    def _compute_duration_minute(self):
+        for record in self:
+            if record.start_date and record.end_date:
+                user_tz = self.env.user.tz or "UTC"
+                local_tz = timezone(user_tz)
+                start_datetime = fields.Datetime.from_string(record.start_date).astimezone(local_tz)
+                end_datetime = fields.Datetime.from_string(record.end_date).astimezone(local_tz)
+                duration = end_datetime - start_datetime
+                record.duration_minutes = duration.total_seconds() // 60
+
 
     @api.onchange("start_date", "end_date")
     def _onchange_compute_duration(self):

@@ -132,7 +132,8 @@
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
                         </group>
                         <group attrs="{'invisible': [('action', '=', 'delete')]}">
-                            <field name="duration"></field>
+                            <field name="duration" invisible="1"></field>
+                            <field name="duration_minutes"></field>
                             <field name="repeat_weekly"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
                         </group>
