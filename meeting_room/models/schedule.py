@@ -1,4 +1,4 @@
-from odoo import models, fields, api, tools
+from odoo import models, fields, api, tools,SUPERUSER_ID
 from odoo.exceptions import ValidationError
 from datetime import timedelta, datetime
 from pytz import timezone
@@ -8,6 +8,10 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formatdate
 import smtplib
+from datetime import timedelta, datetime
+import pytz
+from odoo.exceptions import UserError
+import socket
 
 
 class MeetingSchedule(models.Model):
@@ -80,14 +84,15 @@ class MeetingSchedule(models.Model):
         compute="_compute_date_start",
     )
     repeat_weekly = fields.Integer(string="Repeat Weekly", default=1)
+    weekday = fields.Char(string='Weekday', compute="_compute_weekday_selected")
 
-    monday = fields.Boolean(string="Monday", default=True)
-    tuesday = fields.Boolean(string="Tuesday", default=True)
-    wednesday = fields.Boolean(string="Wednesday", default=True)
-    thursday = fields.Boolean(string="Thursday", default=True)
-    friday = fields.Boolean(string="Friday", default=True)
-    saturday = fields.Boolean(string="Saturday", default=False)
-    sunday = fields.Boolean(string="Sunday", default=False)
+    monday = fields.Boolean(string="Monday", default=True,readonly=False)
+    tuesday = fields.Boolean(string="Tuesday", default=True,readonly=False)
+    wednesday = fields.Boolean(string="Wednesday", default=True,readonly=False)
+    thursday = fields.Boolean(string="Thursday", default=True,readonly=False)
+    friday = fields.Boolean(string="Friday", default=True,readonly=False)
+    saturday = fields.Boolean(string="Saturday", default=False,readonly=False)
+    sunday = fields.Boolean(string="Sunday", default=False,readonly=False)
 
     include_other = fields.Boolean(
         string="Include other user's meetings", default=False
@@ -134,6 +139,11 @@ class MeetingSchedule(models.Model):
         with self.env.norecompute():
             for vals, ids in updates.items():
                 self.browse(ids).write(dict(vals))
+       
+
+    @api.onchange('start_date')
+    def _compute_weekday_selected(self):
+        self.weekday = convert_to_local(str(self.start_date), 'Asia/Ho_Chi_Minh').strftime("%A")
 
     # Depend Fields
     @api.depends("content_binary", "content_file", "attachment_id")
@@ -202,8 +212,10 @@ class MeetingSchedule(models.Model):
     @api.constrains("repeat_weekly")
     def _check_max_value(self):
         for record in self:
-            if record.repeat_weekly > 10:
+            if record.repeat_weekly > 10 :
                 raise ValidationError("Maximum weekLy meeting allowed is 10.")
+            if record.repeat_weekly < 1:
+                raise ValidationError("Minimum weekLy meeting allowed is 1.")
 
     @api.constrains("start_date", "duration", "room_id")
     def _check_room_availability(self):
@@ -258,14 +270,76 @@ class MeetingSchedule(models.Model):
             if record.start_date and record.end_date:
                 user_tz = self.env.user.tz or "UTC"
                 local_tz = timezone(user_tz)
-                start_datetime = fields.Datetime.from_string(record.start_date).astimezone(local_tz)
-                end_datetime = fields.Datetime.from_string(record.end_date).astimezone(local_tz)
-                duration = end_datetime - start_datetime
-                record.duration_minutes = duration.total_seconds() // 60
+                
+                number_date = ((self.end_date -self.start_date).days) + 1
+
+                start_datetime = fields.Datetime.from_string(record.start_date)
+                end_datetime = fields.Datetime.from_string(record.end_date)
+                start_time_minutes = start_datetime.hour * 60 + start_datetime.minute
+                end_time_minutes = end_datetime.hour * 60 + end_datetime.minute
+
+                duration = (end_time_minutes - start_time_minutes)
+                print(duration)
+                record.duration_minutes = duration*number_date
+
+                # new_end_datetime= datetime.combine(start_datetime.date(),end_datetime.time())
+                # print(start_datetime,end_datetime,new_end_datetime)
+                # duration = new_end_datetime - start_datetime
+                # record.duration_minutes = duration.second // 60
+    # def check(self,additional_value):
+    #     local_start = convert_to_local(str(self.start_date), 'Asia/Ho_Chi_Minh')
+    #     local_end = convert_to_local(str(self.end_date), 'Asia/Ho_Chi_Minh')
+    #     number_date = (local_end -local_start)
+    #     print(additional_value,"number day")
+
+    #     list_item =[]
+
+    #     for item in range(0,number_date.days + 1):
+    #         newday = local_start
+    #         print(self.friday)
+    #         if newday.weekday() == 0:
+    #             self.monday = {'readonly': True} 
+    #         elif newday.weekday() == 1:
+    #             self.tuesday={'readonly': True} 
+    #         elif newday.weekday() == 2:
+    #             self.wednesday={'readonly': True} 
+    #         elif newday.weekday() == 3:
+    #             self.thursday={'readonly': True} 
+    #         elif newday.weekday() == 4:
+    #             self.friday={'readonly': True} 
+    #         elif newday.weekday() == 5:
+    #             self.saturday={'readonly': True} 
+    #         else:
+    #             self.sunday={'readonly': True} 
+            
+    #         local_start += timedelta(days=1) 
 
 
     @api.onchange("start_date", "end_date")
-    def _onchange_compute_duration(self):
+    def _onchange_compute_duration(self):    
+        local_start = convert_to_local(str(self.start_date), 'Asia/Ho_Chi_Minh')
+        local_end = convert_to_local(str(self.end_date), 'Asia/Ho_Chi_Minh')
+        number_date = (local_end -local_start)
+        for item in range(0,number_date.days + 1):
+            newday = local_start
+            print(newday.weekday())
+            if newday.weekday() == 0:
+                self.monday = {'readonly': True} 
+            elif newday.weekday() == 1:
+                self.tuesday={'readonly': True} 
+            elif newday.weekday() == 2:
+                self.wednesday={'readonly': True} 
+            elif newday.weekday() == 3:
+                self.thursday={'readonly': True} 
+            elif newday.weekday() == 4:
+                self.friday={'readonly': True} 
+            elif newday.weekday() == 5:
+                self.saturday={'readonly': True} 
+            else:
+                self.sunday={'readonly': True} 
+            
+            local_start += timedelta(days=1) 
+
         for record in self:
             if record.start_date and record.end_date:
                 user_tz = self.env.user.tz or "UTC"
@@ -291,6 +365,8 @@ class MeetingSchedule(models.Model):
                 duration_seconds = end_seconds - start_seconds
                 duration_hours = duration_seconds / 3600
                 record.duration = duration_hours
+            
+            
 
     # Business Logic Methods
     def create_daily(self):
@@ -359,7 +435,7 @@ class MeetingSchedule(models.Model):
         schedules_to_create = []
         for schedule in self:
             start_date = fields.Datetime.from_string(schedule.start_date)
-            end_date = fields.Datetime.from_string(schedule.end_date)
+            # end_date = fields.Datetime.from_string(schedule.end_date)
             weekdays_to_exclude = [
                 not getattr(schedule, day)
                 for day in [
@@ -497,7 +573,14 @@ class MeetingSchedule(models.Model):
             )
         )
 
-        body = f"Hello, You are invited to a meeting. Please attend at {date_obj}."
+        room_id =str(self.room_id.id)
+        
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        port = 8069
+        id = self.id
+        url = f"http://{ip_address}:{port}/web#id={id}&menu_id=457&action=558&model=meeting.schedule&view_type=form"
+        body = f"Hello, You are invited to a meeting. Please attend at {date_obj}, room {room_id}.\n\nLink: {url}"
 
         msg = MIMEMultipart()
         msg["From"] = sender
@@ -507,7 +590,7 @@ class MeetingSchedule(models.Model):
         msg.attach(MIMEText(body, "plain"))
 
         server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-        server.login(self.user_id.email, "inmg tuzd nezk juey")
+        server.login(self.user_id.email, "wris tnin qncg fkng")
         server.sendmail(sender, recipients, msg.as_string())
         server.quit()
         self._cr.commit()
@@ -517,6 +600,7 @@ class MeetingSchedule(models.Model):
     def create(self, vals):
         start_date = vals.get("start_date")
         end_date = vals.get("end_date")
+        global id
         if vals.get("action") == "create":
             vals["is_edit"] = True
             meeting_schedule = super(MeetingSchedule, self).create(vals)
@@ -524,7 +608,7 @@ class MeetingSchedule(models.Model):
             if not self._check_is_hr() and self._check_is_past_date(start_date):
                 raise ValidationError("Start date cannot be in the past")
 
-            meeting_schedule._validate_start_date()
+            #meeting_schedule._validate_start_date()
 
             meeting_type = vals.get("meeting_type")
             if meeting_type == "daily":
@@ -532,6 +616,7 @@ class MeetingSchedule(models.Model):
             elif meeting_type == "weekly":
                 meeting_schedule.create_weekly()
             if "partner_ids" in vals and len(vals["partner_ids"][0][2]) > 0:
+                id = meeting_schedule.id
                 meeting_schedule.send_email_to_attendees()
             return meeting_schedule
         else:
@@ -578,3 +663,97 @@ class MeetingSchedule(models.Model):
             ):
                 raise ValidationError("Cannot delete ongoing or finished meetings.")
         return super(MeetingSchedule, self).unlink()
+    @api.model
+    def delete_meeting(self,selected_value,dateStart):
+        id = dateStart
+        find_meeting = self.env["meeting.schedule"].search(
+                    [
+                        ("id", "=", id),     
+                    ]
+                )
+        print(id,"***")
+        if self._check_is_hr()==True:
+            if selected_value == "self_only":   
+                find_meeting.unlink()      
+            elif selected_value == "future_events":
+                record_to_detele = self.env["meeting.schedule"].search(
+                        [
+                            ("start_date", ">=", find_meeting.start_date),
+                        ]
+                    )
+                find_meeting.unlink()
+                record_to_detele.unlink()
+            else:
+                record_to_detele = self.env["meeting.schedule"].search([])
+                record_to_detele.unlink()
+        else:     
+            if(find_meeting.user_id.id == self.env.uid):
+                if selected_value == "self_only":   
+                    find_meeting.unlink()      
+                elif selected_value == "future_events":
+                    record_to_detele = self.env["meeting.schedule"].search(
+                            [
+                                ("start_date", ">=", find_meeting.start_date),
+                            ]
+                        )
+                    find_meeting.unlink()
+                    record_to_detele.unlink()
+                else:
+                    record_to_detele = self.env["meeting.schedule"].search([])
+                    record_to_detele.unlink()
+
+            raise UserError("You cannot delete someone else's meeting.")
+
+    customize = fields.Boolean(
+        string='Customize',
+        default=False
+    )
+    @api.onchange('start_date','meeting_type')
+    def onchange_start_time(self):
+        if self.meeting_type == "daily":
+            self.monday = True
+            self.tuesday = True
+            self.thursday = True
+            self.wednesday = True
+            self.friday = True
+            self.saturday = False
+            self.sunday = False
+        if self.meeting_type =="weekly":
+            self.monday = False
+            self.tuesday = False
+            self.thursday = False
+            self.wednesday = False
+            self.friday = False
+            self.saturday = False
+            self.sunday = False
+
+            local_start = convert_to_local(str(self.start_date), 'Asia/Ho_Chi_Minh')
+            day_of_week=local_start.weekday()
+            if day_of_week == 0:
+                    self.monday = True
+            elif day_of_week == 1:
+                    self.tuesday = True
+            elif day_of_week == 2:
+                    
+                    self.wednesday = True
+            elif day_of_week == 3:
+                    self.thursday = True
+            elif day_of_week == 4:
+                    self.friday = True
+            elif day_of_week == 5:
+                    self.saturday = True
+            elif day_of_week == 6:
+                    self.sunday = True
+
+def convert_to_local(utc_datetime=None, timezone='utc'):
+        """Convert UTC time to Localtime"""
+        utc_datetime = datetime.strptime(utc_datetime, "%Y-%m-%d %H:%M:%S")
+        utc = pytz.timezone('UTC')
+        utc_dt = utc.localize(utc_datetime)
+        local = pytz.timezone(timezone)
+        local_dt = utc_dt.astimezone(local)
+        local_dt = local_dt.replace(tzinfo=None)
+        
+        return local_dt
+    
+    

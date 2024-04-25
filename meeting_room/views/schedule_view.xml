@@ -13,6 +13,7 @@
                 date_delay="duration"
                 quick_add="false"
                 event_open_popup="true"
+                js_class="msm"
             >
                 <field name="meeting_subject" />
                 <field name="start_date" />
@@ -102,11 +103,11 @@
         <field name="arch" type="xml">
             <form string="New Meeting">
                 <sheet>
-                    <group attrs="{'invisible':[('is_edit', '=', True)]}">
-                        <group>
-                            <field name="action" />
-                        </group>
-                    </group>
+                    <!-- <group attrs="{'invisible':[('is_edit', '=', True)]}">
+                        <group> -->
+                            <field name="action" invisible="1"/>
+                        <!-- </group>
+                    </group> -->
                     <group attrs="{'invisible': [('action', '=', 'delete')]}">
                         <field name="meeting_subject"
                             attrs="{'required':[('action','=','create')],'readonly': [('check_access_team_id', '=', False)]}" />
@@ -134,8 +135,13 @@
                         <group attrs="{'invisible': [('action', '=', 'delete')]}">
                             <field name="duration" invisible="1"></field>
                             <field name="duration_minutes"></field>
+                            <field name = "weekday" attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','daily')]}"></field>
                             <field name="repeat_weekly"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
+                                <field name="customize"
+                                groups="meeting_room.group_meeting_room_hr"
+                                widget="boolean_toggle" attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}"/>
+
                         </group>
                         <group attrs="{'invisible': [('action', '!=', 'delete')]}">
                             <field name="include_other"
@@ -145,14 +151,14 @@
                         </group>
                     </group>
                     <group
-                        attrs="{'invisible': ['|',('action', '=', 'delete'),('is_edit', '=', True)]}">
-                        <group attrs="{'invisible': [('meeting_type', '=', 'normal')]}">
-                            <field name="monday" />
+                    attrs="{'invisible': ['|', '|', ('action', '=', 'delete'), ('is_edit', '=', True), ('customize', '=', False)]}">
+                        <group attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}">
+                            <field name="monday"/>
                             <field name="tuesday" />
                             <field name="wednesday" />
                             <field name="thursday" />
                         </group>
-                        <group attrs="{'invisible': [('meeting_type', '=', 'normal')]}">
+                        <group attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}">
                             <field name="friday" />
                             <field name="saturday" />
                             <field name="sunday" />
