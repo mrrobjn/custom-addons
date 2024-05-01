@@ -102,21 +102,25 @@
         <field name="model">meeting.schedule</field>
         <field name="arch" type="xml">
             <form string="New Meeting">
+                <xpath expr="//header" position="after">
+                    <div class="alert alert-warning" role="alert"
+                        style="height: 40px; margin-bottom:0px;"
+                        attrs="{'invisible':[('is_valid_duration', '=', True)]}">
+                        The meeting must end within the same date <strong></strong>. </div>
+                </xpath>
                 <sheet>
-                    <!-- <group attrs="{'invisible':[('is_edit', '=', True)]}">
-                        <group> -->
-                            <field name="action" invisible="1"/>
-                        <!-- </group>
-                    </group> -->
-                    <group attrs="{'invisible': [('action', '=', 'delete')]}">
+                    <group>
                         <field name="meeting_subject"
-                            attrs="{'required':[('action','=','create')],'readonly': [('check_access_team_id', '=', False)]}" />
+                            attrs="{'readonly': [('check_access_team_id', '=', False)]}"
+                            required="1" />
                         <field name="check_access_team_id" invisible="1" />
+                        <field name="is_valid_duration" invisible="1" />
                     </group>
-                    <group attrs="{'invisible': [('action', '=', 'delete')]}">
+                    <group>
                         <group>
                             <field name="room_id"
-                                attrs="{'required':[('action','=','create')],'readonly': [('check_access_team_id', '=', False)]}"></field>
+                                attrs="{'readonly': [('check_access_team_id', '=', False)]}"
+                                required="1"></field>
                         </group>
                         <group>
                             <field name="meeting_type"
@@ -130,35 +134,34 @@
                             <field name="start_date"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
                             <field name="end_date"
-                                attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
-                        </group>
-                        <group attrs="{'invisible': [('action', '=', 'delete')]}">
-                            <field name="duration" invisible="1"></field>
-                            <field name="duration_minutes"></field>
-                            <field name = "weekday" attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','daily')]}"></field>
+                                attrs="{'readonly': ['|',('check_access_team_id', '=', False),('meeting_type', '!=', 'daily')],'invisible': [('meeting_type', '!=', 'daily')]}" />
                             <field name="repeat_weekly"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
-                                <field name="customize"
-                                groups="meeting_room.group_meeting_room_hr"
-                                widget="boolean_toggle" attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}"/>
-
                         </group>
-                        <group attrs="{'invisible': [('action', '!=', 'delete')]}">
-                            <field name="include_other"
-                                groups="meeting_room.group_meeting_room_hr"
-                                widget="boolean_toggle" />
+                        <group>
+                            <field name="duration" invisible="1"></field>
+                            <field name="duration_minutes"
+                                attrs="{'readonly': [('meeting_type', '=', 'daily')]}"></field>
+                            <field name="weekday"
+                                attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','daily')]}"></field>
+
+                            <field name="customize"
+                                widget="boolean_toggle"
+                                attrs="{'invisible': ['|',('meeting_type', '!=', 'daily'),('is_edit', '=', True)]}" />
                             <field name="is_edit" invisible="1" />
                         </group>
                     </group>
                     <group
-                    attrs="{'invisible': ['|', '|', ('action', '=', 'delete'), ('is_edit', '=', True), ('customize', '=', False)]}">
-                        <group attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}">
-                            <field name="monday"/>
+                        attrs="{'invisible': ['|', ('is_edit', '=', True), ('customize', '=', False)]}">
+                        <group
+                            attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}">
+                            <field name="monday" />
                             <field name="tuesday" />
                             <field name="wednesday" />
                             <field name="thursday" />
                         </group>
-                        <group attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}">
+                        <group
+                            attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}">
                             <field name="friday" />
                             <field name="saturday" />
                             <field name="sunday" />
@@ -166,7 +169,7 @@
                     </group>
                     <!-- attachment -->
                     <group
-                        attrs="{'invisible': ['|',('action', '=', 'delete'),('is_partner', '=', False)]}">
+                        attrs="{'invisible': [('is_partner', '=', False)]}">
                         <field name="is_partner" invisible="1" />
                         <field name="attachment" filename="filename" mimetype="mimetype"
                             widget="preview_binary"
@@ -175,11 +178,11 @@
                         <field name="filename" invisible="1" />
                     </group>
                     <!-- attachment -->
-                    <group attrs="{'invisible': [('action', '=', 'delete')]}">
+                    <group>
                         <field name="description"
                             attrs="{'readonly': [('check_access_team_id', '=', False)]}"></field>
                     </group>
-                    <notebook attrs="{'invisible': [('action', '=', 'delete')]}">
+                    <notebook>
                         <page string="Attendees">
                             <field name="partner_ids"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
@@ -201,41 +204,6 @@
                     <filter string="Room" name="group_by_room" context="{'group_by': 'room_id'}" />
                 </group>
             </search>
-        </field>
-    </record>
-
-    <record id="email_template_name" model="mail.template">
-        <field name="name">EMAIL TEMPLATE NAME</field>
-        <field name="model_id" ref="meeting_room.model_meeting_schedule" />
-        <field name="auto_delete" eval="True" />
-        <field name="email_from">{{object.create_uid.email_formatted or ''}}</field>
-        <field name="email_to">{{', '.join(object.partner_ids.mapped('email')) or ''}}</field>
-        <field name="body_html" type="html">
-            <p>Dear Sir/Madam,</p>
-            <p>I hope this message finds you well. We are excited to invite you to our upcoming Zoom
-                meeting, where we will discuss important matters and collaborate on upcoming
-                projects.
-                Below are the details for the meeting:
-            </p>
-            <p> Datetime: <span t-field="object.start_date" />
-            </p>
-            <p> Agenda: <span t-field="object.description" />
-
-            </p>
-            <p> Your active participation and input are highly valued as we strive to move forward
-                as a cohesive team. Please make sure to mark your calendars accordingly and join the
-                meeting promptly at the scheduled time.
-
-            </p>
-            <p>If you have any questions or specific topics you would like to address during the
-                meeting, please feel free to reach out to me beforehand.
-
-            </p>
-            <p>Looking forward to seeing you all there!
-            </p>
-            <p>
-                Best regards,
-            </p>
         </field>
     </record>
 
