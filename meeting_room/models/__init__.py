@@ -2,3 +2,4 @@
 
 from . import room
 from . import schedule
+from . import employee

@@ -187,10 +187,19 @@
                         <field name="description"
                             attrs="{'readonly': [('check_access_team_id', '=', False)]}"></field>
                     </group>
+                    <group>
+                        <field name="tatol_id"></field>
+                    </group>
                     <notebook>
-                        <page string="Attendees">
-                            <field name="partner_ids"
-                                attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
+                        <page string="Attendees" name="Attendees">
+                            <field name="employee_id" widget="one2many"
+                            attrs="{'readonly': [('check_access_team_id', '=', False)]}"
+                            >
+                            <tree editable="top">
+                                <field name="name" invisible="1" >s</field>
+                                <field name="activity_user_id" widget="many2one_avatar_user"/>
+                            </tree>
+                        </field>
                         </page>
                     </notebook>
                 </sheet>
