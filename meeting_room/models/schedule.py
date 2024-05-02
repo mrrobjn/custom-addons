@@ -116,6 +116,16 @@ class MeetingSchedule(models.Model):
         "res.partner",
         string="Attendees",
     )
+    employee_id = fields.Many2many(
+        "hr.employee",
+        string="Attendees",
+        store=False,
+    )
+
+    tatol_id = fields.Char(
+        string = "Send to",
+        readonly=True
+    )
     is_partner = fields.Boolean(default=True, compute="check_user_in_partner_ids")
     customize = fields.Boolean(string="Customize", default=False)
     is_same_date = fields.Boolean(default=True)
@@ -564,6 +574,22 @@ class MeetingSchedule(models.Model):
     # CRUD Methods
     @api.model
     def create(self, vals):
+        activity_user_ids = [str(item[2]['activity_user_id']) for item in vals['employee_id'] if len(item) >= 3 and isinstance(item[2], dict) and isinstance(item[2].get('activity_user_id'), int)]
+        activity_user_id_str = ",".join(activity_user_ids)
+        elements = activity_user_id_str.split(",")
+        elements = list(set(int(element) for element in elements))
+
+        tatol_user=""
+        for item in elements:
+            find_meeting = self.env["res.users"].search(
+            [
+                ("id", "=", item),
+            ]
+            )
+            tatol_user= tatol_user + str(find_meeting.name) + ","
+        vals['tatol_id'] = tatol_user
+        vals['employee_id']= None 
+
         start_date = vals.get("start_date")
         global id
         vals["is_edit"] = True
