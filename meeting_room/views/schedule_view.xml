@@ -105,11 +105,11 @@
                 <xpath expr="//header" position="after">
                     <div class="alert alert-warning" role="alert"
                         style="height: 40px; margin-bottom:0px;"
-                        attrs="{'invisible':[('is_same_date', '=', True)]}"> 
+                        attrs="{'invisible':[('is_same_date', '=', True)]}">
                         The meeting must end within the same date. </div>
                     <div class="alert alert-warning" role="alert"
                         style="height: 40px; margin-bottom:0px;"
-                        attrs="{'invisible':[('is_long_meeting', '=', True)]}"> 
+                        attrs="{'invisible':[('is_long_meeting', '=', True)]}">
                         A meeting must be at least 15 minutes. </div>
                 </xpath>
                 <sheet>

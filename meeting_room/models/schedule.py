@@ -19,7 +19,7 @@ class MeetingSchedule(models.Model):
     _order = "start_date DESC"
 
     name = fields.Char(
-        string="Thumbnail", compute="_compute_meeting_name", required=True
+        string="Name", compute="_compute_meeting_name", required=True
     )
     meeting_subject = fields.Char(string="Meeting subject")
     description = fields.Text(string="Description")
@@ -629,17 +629,26 @@ class MeetingSchedule(models.Model):
         else:
             if find_meeting.user_id.id == self.env.uid:
                 if selected_value == "self_only":
-                    find_meeting.unlink()
+                    if self._check_is_past_date(find_meeting.start_date):
+                        raise ValidationError(
+                            "Cannot delete ongoing or finished meetings."
+                        )
+                    return super(MeetingSchedule, find_meeting).unlink()
                 elif selected_value == "future_events":
                     record_to_detele = self.env["meeting.schedule"].search(
                         [
                             ("start_date", ">=", find_meeting.start_date),
+                            ("create_uid", "=", self.env.uid),
                         ]
                     )
-                    find_meeting.unlink()
-                    record_to_detele.unlink()
+                    return super(MeetingSchedule, record_to_detele).unlink()
                 else:
-                    record_to_detele = self.env["meeting.schedule"].search([])
-                    record_to_detele.unlink()
+                    record_to_detele = self.env["meeting.schedule"].search(
+                        [
+                            ("start_date", ">=", fields.Datetime.now()),
+                            ("create_uid", "=", self.env.uid),
+                        ]
+                    )
+                    return super(MeetingSchedule, record_to_detele).unlink()
 
-            raise UserError("You cannot delete someone else's meeting.")
+            raise ValidationError("You cannot delete someone else's meeting.")
