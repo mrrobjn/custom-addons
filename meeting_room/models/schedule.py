@@ -46,6 +46,8 @@ class MeetingSchedule(models.Model):
     )
     duration_minutes = fields.Integer(
         string="Duration(minutes)",
+        compute="_compute_duration_minutes",
+        store=True,
     )
     room_id = fields.Many2one("meeting.room", string="Room", ondelete="cascade")
     company_id = fields.Many2one(
@@ -116,7 +118,8 @@ class MeetingSchedule(models.Model):
     )
     is_partner = fields.Boolean(default=True, compute="check_user_in_partner_ids")
     customize = fields.Boolean(string="Customize", default=False)
-    is_valid_duration = fields.Boolean(default=True)
+    is_same_date = fields.Boolean(default=True)
+    is_long_meeting = fields.Boolean(default=True)
 
     # upload + download document
     def _inverse_content(self):
@@ -201,6 +204,14 @@ class MeetingSchedule(models.Model):
                 duration_seconds = end_seconds - start_seconds
                 duration_hours = duration_seconds / 3600
                 record.duration = duration_hours
+
+    @api.depends("start_date", "end_date")
+    def _compute_duration_minutes(self):
+        for record in self:
+            if record.start_date and record.end_date:
+                duration = record.end_date - record.start_date
+                minutes = duration.total_seconds() // 60
+                record.duration_minutes = int(minutes)
 
     # Constraints
     @api.constrains("duration")
@@ -310,8 +321,12 @@ class MeetingSchedule(models.Model):
                 record.end_date = record.start_date + timedelta(
                     minutes=record.duration_minutes
                 )
+                if record.duration_minutes < 15:
+                    record.is_long_meeting = False
+                else:
+                    record.is_long_meeting = True
 
-    @api.onchange("start_date", "end_date","meeting_type")
+    @api.onchange("start_date", "end_date", "meeting_type")
     def onchange_check_date(self):
         for record in self:
             user_tz = self.env.user.tz or "UTC"
@@ -325,9 +340,9 @@ class MeetingSchedule(models.Model):
                 and start_date.date() != end_date.date()
                 and record.duration_minutes != 0
             ):
-                record.is_valid_duration = False
+                record.is_same_date = False
             else:
-                record.is_valid_duration = True
+                record.is_same_date = True
 
     @api.onchange("start_date", "meeting_type")
     def onchange_start_time(self):
@@ -369,7 +384,7 @@ class MeetingSchedule(models.Model):
                 self.sunday = True
 
     @api.onchange("start_date", "end_date")
-    def _compute_duration_minutes(self):
+    def _onchange_duration_minutes(self):
         for record in self:
             if record.start_date and record.end_date:
                 duration = record.end_date - record.start_date
@@ -391,11 +406,8 @@ class MeetingSchedule(models.Model):
                 new_end_date = fields.Datetime.to_string(end_date)
             elif (end_datetime + timedelta(hours=7)).date() == end_datetime.date():
                 new_end_date = fields.Datetime.to_string(end_date + timedelta(days=1))
-        self.write(
-            {
-                "end_date": new_end_date,
-            }
-        )
+
+        self.write({"end_date": new_end_date, "meeting_type": "normal"})
 
         weekday_attributes = [
             self.monday,
@@ -419,7 +431,7 @@ class MeetingSchedule(models.Model):
                         "name": self.name,
                         "meeting_subject": self.meeting_subject,
                         "description": self.description,
-                        "meeting_type": self.meeting_type,
+                        "meeting_type": "normal",
                         "start_date": fields.Datetime.to_string(meeting_date),
                         "end_date": fields.Datetime.to_string(
                             datetime.combine(meeting_date.date(), end_datetime.time())
@@ -438,6 +450,8 @@ class MeetingSchedule(models.Model):
         for schedule in self:
             start_date = fields.Datetime.from_string(schedule.start_date)
 
+            self.write({"meeting_type": "normal"})
+
             for i in range(schedule.repeat_weekly + 1):
                 new_schedules = []
                 current_date = start_date + timedelta(weeks=i)
@@ -450,7 +464,7 @@ class MeetingSchedule(models.Model):
                             "start_date": current_date,
                             "end_date": current_date
                             + timedelta(minutes=self.duration_minutes),
-                            "meeting_type": self.meeting_type,
+                            "meeting_type": "normal",
                             "room_id": schedule.room_id.id,
                             "company_id": schedule.company_id.id,
                             "duration": self.duration,

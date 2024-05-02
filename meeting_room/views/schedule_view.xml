@@ -105,8 +105,12 @@
                 <xpath expr="//header" position="after">
                     <div class="alert alert-warning" role="alert"
                         style="height: 40px; margin-bottom:0px;"
-                        attrs="{'invisible':[('is_valid_duration', '=', True)]}">
-                        The meeting must end within the same date <strong></strong>. </div>
+                        attrs="{'invisible':[('is_same_date', '=', True)]}"> 
+                        The meeting must end within the same date. </div>
+                    <div class="alert alert-warning" role="alert"
+                        style="height: 40px; margin-bottom:0px;"
+                        attrs="{'invisible':[('is_long_meeting', '=', True)]}"> 
+                        A meeting must be at least 15 minutes. </div>
                 </xpath>
                 <sheet>
                     <group>
@@ -114,7 +118,8 @@
                             attrs="{'readonly': [('check_access_team_id', '=', False)]}"
                             required="1" />
                         <field name="check_access_team_id" invisible="1" />
-                        <field name="is_valid_duration" invisible="1" />
+                        <field name="is_same_date" invisible="1" />
+                        <field name="is_long_meeting" invisible="1" />
                     </group>
                     <group>
                         <group>
@@ -134,14 +139,14 @@
                             <field name="start_date"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
                             <field name="end_date"
-                                attrs="{'readonly': ['|',('check_access_team_id', '=', False),('meeting_type', '!=', 'daily')],'invisible': [('meeting_type', '!=', 'daily')]}" />
+                                attrs="{'readonly': [('check_access_team_id', '=', False)],'invisible': [('meeting_type', '!=', 'daily')]}" />
                             <field name="repeat_weekly"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
                         </group>
                         <group>
                             <field name="duration" invisible="1"></field>
                             <field name="duration_minutes"
-                                attrs="{'readonly': [('meeting_type', '=', 'daily')]}"></field>
+                                attrs="{'readonly': ['|',('meeting_type', '=', 'daily'),('check_access_team_id', '=', False)]}"></field>
                             <field name="weekday"
                                 attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','daily')]}"></field>
 
