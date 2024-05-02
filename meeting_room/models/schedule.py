@@ -630,7 +630,7 @@ class MeetingSchedule(models.Model):
             if find_meeting.user_id.id == self.env.uid:
                 if selected_value == "self_only":
                     if self._check_is_past_date(find_meeting.start_date):
-                        raise ValidationError(
+                        raise Exception(
                             "Cannot delete ongoing or finished meetings."
                         )
                     return super(MeetingSchedule, find_meeting).unlink()
@@ -651,4 +651,4 @@ class MeetingSchedule(models.Model):
                     )
                     return super(MeetingSchedule, record_to_detele).unlink()
 
-            raise ValidationError("You cannot delete someone else's meeting.")
+            raise Exception("You cannot delete someone else's meeting.")
