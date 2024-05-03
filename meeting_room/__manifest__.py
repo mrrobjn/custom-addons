@@ -27,6 +27,7 @@
         "views/room_view.xml",
         "views/schedule_view.xml",
         "views/menu.xml",
+        "data/mail_template.xml",
       
     ],
     "sequence": -100,

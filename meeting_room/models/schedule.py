@@ -17,6 +17,7 @@ class MeetingSchedule(models.Model):
     _name = "meeting.schedule"
     _description = "Meeting schedule"
     _order = "start_date DESC"
+    _inherit = ['mail.thread', 'mail.activity.mixin']
 
     name = fields.Char(
         string="Name", compute="_compute_meeting_name", required=True
@@ -517,38 +518,43 @@ class MeetingSchedule(models.Model):
         return new_vals
 
     def send_email_to_attendees(self):
-        subject = "Meeting Attendance"
-        sender = self.user_id.email
-        recipients = self.partner_ids.mapped("email")
+        mail_template = "meeting_room.invite_meeting_mail_template"
+        subject_template = "[Metting] Invite Meeting Attendance"
+        self._send_message_auto_subscribe_notify(self.partner_ids, mail_template, subject_template)
 
-        start_date = self.start_date
+    @api.model
+    def _send_message_auto_subscribe_notify(self, users_per_task, mail_template, subject_template):
+        template_id = self.env['ir.model.data']._xmlid_to_res_id(mail_template, raise_if_not_found=False)
+        if not template_id:
+            return
+        view = self.env['ir.ui.view'].browse(template_id)
         date_obj = fields.Datetime.to_string(
             fields.Datetime.context_timestamp(
-                self, fields.Datetime.from_string(start_date)
+                self, fields.Datetime.from_string(self.start_date)
             )
         )
+        for users in users_per_task:
+            if not users:
+                continue
+            values = {
+                'object': self,
+                'date_obj': date_obj,
+                'model_description': "Invite meeting",
+                'access_link': self._notify_get_action_link('view'),
+            }
 
-        room_id = str(self.room_id.id)
-
-        hostname = socket.gethostname()
-        ip_address = socket.gethostbyname(hostname)
-        port = 8069
-        id = self.id
-        url = f"http://{ip_address}:{port}/web#id={id}&menu_id=457&action=558&model=meeting.schedule&view_type=form"
-        body = f"Hello, You are invited to a meeting. Please attend at {date_obj}, room {room_id}.\n\nLink: {url}"
-
-        msg = MIMEMultipart()
-        msg["From"] = sender
-        msg["To"] = ", ".join(recipients)
-        msg["Date"] = formatdate(localtime=True)
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain"))
-
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-        server.login(self.user_id.email, "wris tnin qncg fkng")
-        server.sendmail(sender, recipients, msg.as_string())
-        server.quit()
-        self._cr.commit()
+            for user in users:
+                values['dear'] = user.name
+                assignation_msg = view._render(values, engine='ir.qweb', minimal_qcontext=True)
+                assignation_msg = self.env['mail.render.mixin']._replace_local_links(assignation_msg)                 
+                self.message_notify(
+                    subject = subject_template,
+                    body = assignation_msg,
+                    partner_ids = [user.id] ,
+                    record_name = self.display_name,
+                    email_layout_xmlid = 'mail.mail_notification_light',
+                    model_description = "Invite meeting",
+                )
 
     def convert_to_local(self, utc_datetime=None, timezone="utc"):
         """Convert UTC time to Localtime"""
@@ -565,12 +571,12 @@ class MeetingSchedule(models.Model):
     @api.model
     def create(self, vals):
         start_date = vals.get("start_date")
-        global id
-        vals["is_edit"] = True
-        meeting_schedule = super(MeetingSchedule, self).create(vals)
-
         if not self._check_is_hr() and self._check_is_past_date(start_date):
             raise ValidationError("Start date cannot be in the past")
+        global id
+        meeting_schedule = super(MeetingSchedule, self).create(vals)
+
+        vals["is_edit"] = True
 
         meeting_schedule._validate_start_date()
 
@@ -652,3 +658,7 @@ class MeetingSchedule(models.Model):
                     return super(MeetingSchedule, record_to_detele).unlink()
 
             raise Exception("You cannot delete someone else's meeting.")
+
+    @api.model
+    def check_hr(self):
+        return bool(self.env.user.has_group("meeting_room.group_meeting_room_hr"))
