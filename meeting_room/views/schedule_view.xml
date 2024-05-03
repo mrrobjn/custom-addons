@@ -187,9 +187,9 @@
                         <field name="description"
                             attrs="{'readonly': [('check_access_team_id', '=', False)]}"></field>
                     </group>
-                    <group>
+                    <!-- <group>
                         <field name="tatol_id"></field>
-                    </group>
+                    </group> -->
                     <notebook>
                         <page string="Attendees" name="Attendees">
                             <field name="employee_id" widget="one2many"

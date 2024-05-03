@@ -122,10 +122,10 @@ class MeetingSchedule(models.Model):
         store=False,
     )
 
-    tatol_id = fields.Char(
-        string = "Send to",
-        readonly=True
-    )
+    # tatol_id = fields.Char(
+    #     string = "Send to",
+    #     readonly=True
+    # )
     is_partner = fields.Boolean(default=True, compute="check_user_in_partner_ids")
     customize = fields.Boolean(string="Customize", default=False)
     is_same_date = fields.Boolean(default=True)
@@ -586,19 +586,22 @@ class MeetingSchedule(models.Model):
     def create(self, vals):
         try:
             activity_user_ids = [str(item[2]['activity_user_id']) for item in vals['employee_id'] if len(item) >= 3 and isinstance(item[2], dict) and isinstance(item[2].get('activity_user_id'), int)]
-            activity_user_id_str = ",".join(activity_user_ids)
-            elements = activity_user_id_str.split(",")
-            elements = list(set(int(element) for element in elements))
-
-            tatol_user=""
-            for item in elements:
-                find_meeting = self.env["res.users"].search(
-                [
-                    ("id", "=", item),
-                ]
-                )
-                tatol_user= tatol_user + str(find_meeting.name) + ","
-            vals['tatol_id'] = tatol_user
+            print(len(activity_user_ids))
+            if len(activity_user_ids) > 0 :
+                activity_user_id_str = ",".join(activity_user_ids)
+                elements = activity_user_id_str.split(",")
+                elements = list(set(int(element) for element in elements))
+                tatol_user=""
+                print(tatol_user)
+                for item in elements:
+                            find_meeting = self.env["res.users"].search(
+                            [
+                                ("id", "=", item),
+                            ]
+                            )
+                            tatol_user= tatol_user + str(find_meeting.name) + ","
+            
+            # vals['tatol_id'] = tatol_user
         except:
             raise ValidationError('Please do not leave any data field blank.')
         vals['employee_id']= None 
@@ -619,7 +622,8 @@ class MeetingSchedule(models.Model):
         elif meeting_type == "weekly":
             meeting_schedule.create_weekly()
         # if "partner_ids" in vals and len(vals["partner_ids"][0][2]) > 0:
-        if len(elements)>0:
+        # print(len(elements))
+        if len(activity_user_ids)>0:
                 id = meeting_schedule.id
                 meeting_schedule.send_email_to_attendees(elements)
             
