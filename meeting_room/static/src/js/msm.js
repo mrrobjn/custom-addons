@@ -12,7 +12,8 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
   var CalendarView = require("web.CalendarView");
   var viewRegistry = require("web.view_registry");
   var session = require("web.session");
-  // user = session.uid
+  // var Model = require("web.Model");
+  // var user = require("res.users");
 
   var _t = core._t;
   var BookingCalendarController = CalendarController.extend({
@@ -27,7 +28,6 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
       var recordID = $(ev.currentTarget).data("id");
 
       var dateStart = ev.data.event.record.id;
-      console.log(ev);
 
       // var dateStart = $('.o_field_widget[name="start_date"]').get().value;
       var dialog = new Dialog(this, {
@@ -76,31 +76,43 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
      */
     _renderEventPopover: function (eventData, $eventElement) {
       var self = this;
-      console.log(
-        eventData._def.extendedProps.record.user_id[0],
-        session.user_id[0]
-      );
+
       // Initialize popover widget
-      var calendarPopover = new self.config.CalendarPopover(
+      let calendarPopover = new self.config.CalendarPopover(
         self,
         self._getPopoverContext(eventData)
       );
 
-      if (
-        eventData._def.extendedProps.record.user_id[0] !== session.user_id[0]
-      ) {
-        calendarPopover._canDelete = false;
-      }
-      // console.log(calendarPopover);
-
-      calendarPopover.appendTo($("<div>")).then(() => {
-        $eventElement
-          .popover(self._getPopoverParams(eventData))
-          .on("shown.bs.popover", function () {
-            self._onPopoverShown($(this), calendarPopover);
-          })
-          .popover("show");
-      });
+      rpc
+        .query({
+          model: "meeting.schedule",
+          method: "check_hr",
+          args: [],
+        })
+        .then(function (result) {
+          if (
+            result === false &&
+            eventData._def.extendedProps.record.user_id[0] !== session.uid
+          ) {
+            calendarPopover._canDelete = false;
+            calendarPopover.isEventEditable = function () {
+              return false;
+            };
+          }
+        })
+        .catch(function (error) {
+          console.log(error);
+        })
+        .finally(function () {
+          calendarPopover.appendTo($("<div>")).then(() => {
+            $eventElement
+              .popover(self._getPopoverParams(eventData))
+              .on("shown.bs.popover", function () {
+                self._onPopoverShown($(this), calendarPopover);
+              })
+              .popover("show");
+          });
+        });
     },
   });
 

@@ -189,7 +189,7 @@
                     </group>
                     <notebook>
                         <page string="Attendees">
-                            <field name="partner_ids"
+                            <field name="partner_ids" widget="many2many_tags_avatar"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
                         </page>
                     </notebook>
