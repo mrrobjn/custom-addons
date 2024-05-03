@@ -526,10 +526,18 @@ class MeetingSchedule(models.Model):
         new_vals["content_file"] = self.attachment
         return new_vals
 
-    def send_email_to_attendees(self):
+    def send_email_to_attendees(self,elements):
         subject = "Meeting Attendance"
         sender = self.user_id.email
-        recipients = self.partner_ids.mapped("email")
+        recipients =[]
+        print("send to")
+        for item in elements:
+            users = self.env['res.users'].search([
+                ('id', '=', item)
+            ])
+            recipients.append(users.email)
+        print(recipients,"send to")
+        # recipients = self.partner_ids.mapped("email")
 
         start_date = self.start_date
         date_obj = fields.Datetime.to_string(
@@ -574,20 +582,23 @@ class MeetingSchedule(models.Model):
     # CRUD Methods
     @api.model
     def create(self, vals):
-        activity_user_ids = [str(item[2]['activity_user_id']) for item in vals['employee_id'] if len(item) >= 3 and isinstance(item[2], dict) and isinstance(item[2].get('activity_user_id'), int)]
-        activity_user_id_str = ",".join(activity_user_ids)
-        elements = activity_user_id_str.split(",")
-        elements = list(set(int(element) for element in elements))
+        try:
+            activity_user_ids = [str(item[2]['activity_user_id']) for item in vals['employee_id'] if len(item) >= 3 and isinstance(item[2], dict) and isinstance(item[2].get('activity_user_id'), int)]
+            activity_user_id_str = ",".join(activity_user_ids)
+            elements = activity_user_id_str.split(",")
+            elements = list(set(int(element) for element in elements))
 
-        tatol_user=""
-        for item in elements:
-            find_meeting = self.env["res.users"].search(
-            [
-                ("id", "=", item),
-            ]
-            )
-            tatol_user= tatol_user + str(find_meeting.name) + ","
-        vals['tatol_id'] = tatol_user
+            tatol_user=""
+            for item in elements:
+                find_meeting = self.env["res.users"].search(
+                [
+                    ("id", "=", item),
+                ]
+                )
+                tatol_user= tatol_user + str(find_meeting.name) + ","
+            vals['tatol_id'] = tatol_user
+        except:
+            raise ValidationError('Please do not leave any data field blank.')
         vals['employee_id']= None 
 
         start_date = vals.get("start_date")
@@ -605,9 +616,10 @@ class MeetingSchedule(models.Model):
             meeting_schedule.create_daily()
         elif meeting_type == "weekly":
             meeting_schedule.create_weekly()
-        if "partner_ids" in vals and len(vals["partner_ids"][0][2]) > 0:
+        # if "partner_ids" in vals and len(vals["partner_ids"][0][2]) > 0:
+        if len(elements)>0:
             id = meeting_schedule.id
-            meeting_schedule.send_email_to_attendees()
+            meeting_schedule.send_email_to_attendees(elements)
         return meeting_schedule
 
     def write(self, vals):
