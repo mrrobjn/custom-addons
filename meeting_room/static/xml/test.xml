@@ -1,0 +1,13 @@
+<!-- <?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <t t-extend="CalendarView.event.popover">
+        <t t-if='True'>
+            <t t-jquery=".o_cw_popover_edit, .o_cw_popover_delete" t-operation="attributes">
+                <!-- <attribute name="class" t-if="True" value="o_hidden"/> -->
+                <attribute name="style">display:none;</attribute>
+            </t>      
+        </t>
+        
+
+    </t>
+</odoo> -->
