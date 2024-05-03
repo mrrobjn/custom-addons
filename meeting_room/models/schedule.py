@@ -554,19 +554,21 @@ class MeetingSchedule(models.Model):
         id = self.id
         url = f"http://{ip_address}:{port}/web#id={id}&menu_id=457&action=558&model=meeting.schedule&view_type=form"
         body = f"Hello, You are invited to a meeting. Please attend at {date_obj}, room {room_id}.\n\nLink: {url}"
+        try:
+            msg = MIMEMultipart()
+            msg["From"] = sender
+            msg["To"] = ", ".join(recipients)
+            msg["Date"] = formatdate(localtime=True)
+            msg["Subject"] = subject
+            msg.attach(MIMEText(body, "plain"))
 
-        msg = MIMEMultipart()
-        msg["From"] = sender
-        msg["To"] = ", ".join(recipients)
-        msg["Date"] = formatdate(localtime=True)
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain"))
-
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-        server.login(self.user_id.email, "wris tnin qncg fkng")
-        server.sendmail(sender, recipients, msg.as_string())
-        server.quit()
-        self._cr.commit()
+            server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+            server.login(self.user_id.email, "wris tnin qncg fkng")
+            server.sendmail(sender, recipients, msg.as_string())
+            server.quit()
+            self._cr.commit()
+        except:
+                print("no")
 
     def convert_to_local(self, utc_datetime=None, timezone="utc"):
         """Convert UTC time to Localtime"""
@@ -618,8 +620,9 @@ class MeetingSchedule(models.Model):
             meeting_schedule.create_weekly()
         # if "partner_ids" in vals and len(vals["partner_ids"][0][2]) > 0:
         if len(elements)>0:
-            id = meeting_schedule.id
-            meeting_schedule.send_email_to_attendees(elements)
+                id = meeting_schedule.id
+                meeting_schedule.send_email_to_attendees(elements)
+            
         return meeting_schedule
 
     def write(self, vals):
