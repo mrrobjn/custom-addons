@@ -11,8 +11,8 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
   var CalendarModel = require("web.CalendarModel");
   var CalendarView = require("web.CalendarView");
   var viewRegistry = require("web.view_registry");
-  
-  console.log("querying Calendar");
+  var session = require("web.session");
+  // user = session.uid
 
   var _t = core._t;
   var BookingCalendarController = CalendarController.extend({
@@ -27,7 +27,7 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
       var recordID = $(ev.currentTarget).data("id");
 
       var dateStart = ev.data.event.record.id;
-      console.log(dateStart);
+      console.log(ev);
 
       // var dateStart = $('.o_field_widget[name="start_date"]').get().value;
       var dialog = new Dialog(this, {
@@ -44,7 +44,6 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
                 'input[name="recurrence-update"]:checked'
               ).val();
 
-              console.log(dateStart);
               rpc
                 .query({
                   model: "meeting.schedule",
@@ -55,7 +54,7 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
                   self.reload();
                 })
                 .catch(function (error) {
-                  Dialog.alert(this,error.message.data.message)
+                  Dialog.alert(this, error.message.data.message);
                 });
             },
           },
@@ -71,7 +70,39 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
   });
   var BookingPopoverRenderer = CalendarRenderer.extend({});
 
-  var BookingCalendarRenderer = BookingPopoverRenderer.extend({});
+  var BookingCalendarRenderer = BookingPopoverRenderer.extend({
+    /**
+     * @override
+     */
+    _renderEventPopover: function (eventData, $eventElement) {
+      var self = this;
+      console.log(
+        eventData._def.extendedProps.record.user_id[0],
+        session.user_id[0]
+      );
+      // Initialize popover widget
+      var calendarPopover = new self.config.CalendarPopover(
+        self,
+        self._getPopoverContext(eventData)
+      );
+
+      if (
+        eventData._def.extendedProps.record.user_id[0] !== session.user_id[0]
+      ) {
+        calendarPopover._canDelete = false;
+      }
+      // console.log(calendarPopover);
+
+      calendarPopover.appendTo($("<div>")).then(() => {
+        $eventElement
+          .popover(self._getPopoverParams(eventData))
+          .on("shown.bs.popover", function () {
+            self._onPopoverShown($(this), calendarPopover);
+          })
+          .popover("show");
+      });
+    },
+  });
 
   var BookingCalendarView = CalendarView.extend({
     config: _.extend({}, CalendarView.prototype.config, {
