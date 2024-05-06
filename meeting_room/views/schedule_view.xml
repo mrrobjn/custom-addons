@@ -190,6 +190,7 @@
                     <notebook>
                         <page string="Attendees">
                             <field name="partner_ids" widget="many2many_tags_avatar"
+                                options="{'no_create': True, 'no_edit': True}"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
                         </page>
                     </notebook>
