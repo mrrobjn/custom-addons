@@ -2,6 +2,7 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
   "use strict";
   var core = require("web.core");
   var Dialog = require("web.Dialog");
+  var dialogs = require('web.view_dialogs');
   var rpc = require("web.rpc");
   var QWeb = core.qweb;
 
@@ -12,14 +13,56 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
   var CalendarView = require("web.CalendarView");
   var viewRegistry = require("web.view_registry");
   var session = require("web.session");
-  // var Model = require("web.Model");
-  // var user = require("res.users");
 
   var _t = core._t;
   var BookingCalendarController = CalendarController.extend({
     /**
      * @override
      */
+    _onOpenEvent: function (event) {
+      var self = this;
+      var id = event.data._id;
+      id = id && parseInt(id).toString() === id ? parseInt(id) : id;
+
+      if (!this.eventOpenPopup) {
+        this._rpc({
+          model: self.modelName,
+          method: "get_formview_id",
+          //The event can be called by a view that can have another context than the default one.
+          args: [[id]],
+          context: event.context || self.context,
+        }).then(function (viewId) {
+          self.do_action({
+            type: "ir.actions.act_window",
+            res_id: id,
+            res_model: self.modelName,
+            views: [[viewId || false, "form"]],
+            target: "current",
+            context: event.context || self.context,
+          });
+        });
+        return;
+      }
+
+      var options = {
+        res_model: self.modelName,
+        res_id: id || null,
+        context: event.context || self.context,
+        title: event.data.title
+          ? _.str.sprintf(_t("Open: %s"), event.data.title)
+          : "Booking Detail",
+        on_saved: function () {
+          if (event.data.on_save) {
+            event.data.on_save();
+          }
+          self.reload();
+        },
+      };
+      if (this.formViewId) {
+        options.view_id = parseInt(this.formViewId);
+      }
+      new dialogs.FormViewDialog(this, options).open();
+    },
     _setEventTitle: function () {
       return _t("Booking Form");
     },
