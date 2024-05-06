@@ -574,9 +574,9 @@ class MeetingSchedule(models.Model):
         if not self._check_is_hr() and self._check_is_past_date(start_date):
             raise ValidationError("Start date cannot be in the past")
         global id
+        vals["is_edit"] = True
         meeting_schedule = super(MeetingSchedule, self).create(vals)
 
-        vals["is_edit"] = True
 
         meeting_schedule._validate_start_date()
 
