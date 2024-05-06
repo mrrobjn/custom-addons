@@ -283,8 +283,7 @@ class MeetingSchedule(models.Model):
                 local_tz
             )
             end_date = fields.Datetime.from_string(record.end_date).astimezone(local_tz)
-            if record.meeting_type != "daily" and start_date.date() != end_date.date():
-                raise ValidationError("The meeting must end within the same date")
+
 
     @api.constrains("repeat_weekly")
     def _check_max_value(self):
@@ -380,6 +379,8 @@ class MeetingSchedule(models.Model):
                 duration_seconds = end_seconds - start_seconds
                 duration_hours = duration_seconds / 3600
                 record.duration = duration_hours
+            if record.start_date.date() != record.end_date.date():
+                record.meeting_type = "daily"
 
     @api.onchange("duration_minutes")
     def onchange_duration_minutes(self):
@@ -393,7 +394,8 @@ class MeetingSchedule(models.Model):
                     record.is_long_meeting = False
                 else:
                     record.is_long_meeting = True
-            
+                    if now_date.date() != record.end_date.date():
+                        record.meeting_type = 'daily'
 
     @api.onchange("start_date", "end_date", "meeting_type")
     def onchange_check_date(self):
@@ -451,14 +453,6 @@ class MeetingSchedule(models.Model):
                 self.saturday = True
             elif day_of_week == 6:
                 self.sunday = True
-
-    @api.onchange("start_date", "end_date")
-    def _onchange_duration_minutes(self):
-        for record in self:
-            if record.start_date and record.end_date:
-                duration = record.end_date - record.start_date
-                minutes = duration.total_seconds() // 60
-                record.duration_minutes = int(minutes)
 
     # Business Logic Methods
     def create_daily(self):
@@ -520,10 +514,15 @@ class MeetingSchedule(models.Model):
             start_date = fields.Datetime.from_string(schedule.start_date)
 
             self.write({"meeting_type": "normal"})
+            start = split_time(str(self.start_minutes))
+            end = split_time(str(self.end_minutes))
+            number_start = int(start["hour"])*60 + int(start["minutes"])
+            number_end = int(end["hour"])*60 + int(end["minutes"])
 
             for i in range(schedule.repeat_weekly + 1):
                 new_schedules = []
                 current_date = start_date + timedelta(weeks=i)
+                
                 if current_date != start_date:
                     new_schedules.append(
                         {
@@ -532,7 +531,7 @@ class MeetingSchedule(models.Model):
                             "description": schedule.description,
                             "start_date": current_date,
                             "end_date": current_date
-                            + timedelta(minutes=self.duration_minutes),
+                            + timedelta(minutes=int(number_end-number_start)),
                             "meeting_type": "normal",
                             "room_id": schedule.room_id.id,
                             "company_id": schedule.company_id.id,
@@ -638,11 +637,23 @@ class MeetingSchedule(models.Model):
     # CRUD Methods
     @api.model
     def create(self, vals):
-        start_date = vals.get("start_date")
+        start_date = fields.Datetime.from_string(vals.get("start_date"))
         if not self._check_is_hr() and self._check_is_past_date(start_date):
             raise ValidationError("Start date cannot be in the past")
         global id
+
         vals["is_edit"] = True
+        print(str(vals.get("start_minutes")))
+        
+        try:
+            start = split_time(str(vals.get("start_minutes")))
+            end = split_time(str(vals.get("end_minutes")))
+                
+            number_start = int(start["hour"])*60 + int(start["minutes"])
+            number_end = int(end["hour"])*60 + int(end["minutes"])
+            vals["end_date"] = start_date + timedelta(minutes=int(number_end-number_start))
+        except:
+            print()
         meeting_schedule = super(MeetingSchedule, self).create(vals)
 
 
