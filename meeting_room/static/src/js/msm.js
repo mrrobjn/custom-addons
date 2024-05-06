@@ -2,7 +2,7 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
   "use strict";
   var core = require("web.core");
   var Dialog = require("web.Dialog");
-  var dialogs = require('web.view_dialogs');
+  var dialogs = require("web.view_dialogs");
   var rpc = require("web.rpc");
   var QWeb = core.qweb;
 
@@ -133,9 +133,11 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
           args: [],
         })
         .then(function (result) {
+          const record = eventData._def.extendedProps.record;
+          const date = new Date();
           if (
             result === false &&
-            eventData._def.extendedProps.record.user_id[0] !== session.uid
+            (record.user_id[0] !== session.uid || record.start_date._d < date)
           ) {
             calendarPopover._canDelete = false;
             calendarPopover.isEventEditable = function () {
