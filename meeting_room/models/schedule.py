@@ -380,8 +380,6 @@ class MeetingSchedule(models.Model):
                 duration_seconds = end_seconds - start_seconds
                 duration_hours = duration_seconds / 3600
                 record.duration = duration_hours
-            if record.meeting_type != "daily" and record.start_date.date() != record.end_date.date():
-                record.meeting_type = "daily"
 
     @api.onchange("duration_minutes")
     def onchange_duration_minutes(self):
@@ -395,8 +393,7 @@ class MeetingSchedule(models.Model):
                     record.is_long_meeting = False
                 else:
                     record.is_long_meeting = True
-                    if now_date.date() != record.end_date.date():
-                        record.meeting_type = 'daily'
+            
 
     @api.onchange("start_date", "end_date", "meeting_type")
     def onchange_check_date(self):
