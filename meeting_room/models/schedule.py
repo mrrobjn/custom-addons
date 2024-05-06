@@ -118,6 +118,7 @@ class MeetingSchedule(models.Model):
         string="Attendees",
     )
     is_partner = fields.Boolean(default=True, compute="check_user_in_partner_ids")
+    for_attachment = fields.Boolean(default=True, compute="check_for_attachment")
     customize = fields.Boolean(string="Customize", default=False)
     is_same_date = fields.Boolean(default=True)
     is_long_meeting = fields.Boolean(default=True)
@@ -159,7 +160,13 @@ class MeetingSchedule(models.Model):
             rec.check_access_team_id = bool(
                 rec._check_is_hr() or rec.user_id.id == self.env.uid
             )
-
+    @api.depends("user_id")
+    def check_for_attachment(self):
+        for rec in self:
+            rec.for_attachment = bool(
+                rec._check_is_hr() or self.env.user.partner_id.id in rec.partner_ids.ids or self.env.uid == rec.create_uid.id
+            )
+                
     @api.depends("name")
     def _compute_meeting_name(self):
         for record in self:

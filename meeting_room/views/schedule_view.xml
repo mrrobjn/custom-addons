@@ -174,8 +174,8 @@
                     </group>
                     <!-- attachment -->
                     <group
-                        attrs="{'invisible': [('is_partner', '=', False)]}">
-                        <field name="is_partner" invisible="1" />
+                        attrs="{'invisible': [('for_attachment', '=', False)]}">
+                        <field name="for_attachment" invisible="1" />
                         <field name="attachment" filename="filename" mimetype="mimetype"
                             widget="preview_binary"
                             attrs="{'readonly': [('check_access_team_id', '=', False)]}"
