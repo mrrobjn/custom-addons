@@ -136,20 +136,26 @@
                     </group>
                     <group>
                         <group>
-                            <field name="start_date"
+                            <field name="start_date" widget="date"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
-                            <field name="end_date"
+                            <field name="end_date"  widget="date"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)],'invisible': [('meeting_type', '!=', 'daily')]}" />
                             <field name="repeat_weekly"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
                         </group>
                         <group>
-                            <field name="duration" invisible="1"></field>
-                            <field name="duration_minutes"
-                                attrs="{'readonly': ['|',('meeting_type', '=', 'daily'),('check_access_team_id', '=', False)]}"></field>
-                            <field name="weekday"
-                                attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','daily')]}"></field>
-
+                        <div class="d-flex" style="width:150%; margin-bottom:2%;margin-top:1%">
+                            <field name="weekday" style="font-weight:900;color:#212529; margin-right:10%"></field>
+                        <field name="start_minutes" widget="selection" html_attrs="{'size': '5'}" style="margin-right:5%"></field>
+                        <h5>-</h5>
+                        <field name="end_minutes" widget="selection" html_attrs="{'size': '5'}" style="margin-left:5%"></field>
+                        </div>
+                        <field name="duration_minutes"
+                                readonly="True"
+                                ></field>
+                        </group>
+                        <group>
+                            <field name="duration" invisible="1"></field>          
                             <field name="customize"
                                 widget="boolean_toggle"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'daily'),('is_edit', '=', True)]}" />
@@ -187,19 +193,10 @@
                         <field name="description"
                             attrs="{'readonly': [('check_access_team_id', '=', False)]}"></field>
                     </group>
-                    <!-- <group>
-                        <field name="tatol_id"></field>
-                    </group> -->
                     <notebook>
-                        <page string="Attendees" name="Attendees">
-                            <field name="employee_id" widget="one2many"
-                            attrs="{'readonly': [('check_access_team_id', '=', False)]}"
-                            >
-                            <tree editable="top">
-                                <field name="name" invisible="1" >s</field>
-                                <field name="activity_user_id" widget="many2one_avatar_user"/>
-                            </tree>
-                        </field>
+                        <page string="Attendees">
+                            <field name="partner_ids" widget="many2many_tags_avatar"
+                                attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
                         </page>
                     </notebook>
                 </sheet>

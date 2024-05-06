@@ -11,12 +11,64 @@ import smtplib
 from datetime import timedelta, datetime, date
 import pytz
 import socket
+def generate_start_minutes_selection():
+    start_minutes_selection = []
+    start_hour = 7
+    start_minute = 0
+    end_hour = 23
+    end_minute = 45
+    interval_minutes = 15
 
+    for hour in range(start_hour, end_hour + 1):
+        for minute in range(0, 60, interval_minutes):
+            if hour == end_hour and minute > end_minute:
+                break
+            formatted_hour = str(hour).zfill(2)
+            formatted_minute = str(minute).zfill(2)
+            if hour >= 12:
+                time_label = f"{formatted_hour}:{formatted_minute} PM"
+            else:
+                time_label = f"{formatted_hour}:{formatted_minute} AM"
+            start_minutes_selection.append((f"{formatted_hour}:{formatted_minute}", time_label))
+    
+    return start_minutes_selection
+def split_time(time_str):
+    time_parts = time_str.split(" ")
+    time = time_parts[0]
+
+    hour, minute = time.split(":")
+
+    return {
+        "hour": hour,
+        "minutes": minute,
+    }
+def default_start_minutes(self):
+        current_time = datetime.now().time()
+        current_hour = current_time.hour + 7
+        current_minute = ((current_time.minute // 15)+1) * 15
+        if current_minute >= 60:
+            current_hour = current_hour+1 
+            current_minute=current_minute-60
+        formatted_hour = f"{current_hour:02d}"
+        formatted_minute = f"{current_minute:02d}"
+        return f"{formatted_hour}:{formatted_minute}"
+def default_end_minutes(self):
+        current_time = datetime.now().time()
+        current_hour = current_time.hour + 7
+        current_minute = ((current_time.minute // 15)+3) * 15
+        if current_minute >= 60:
+            current_hour = current_hour+1 
+            current_minute=current_minute-60
+
+        formatted_hour = f"{current_hour:02d}"
+        formatted_minute = f"{current_minute:02d}"
+        return f"{formatted_hour}:{formatted_minute}"
 
 class MeetingSchedule(models.Model):
     _name = "meeting.schedule"
     _description = "Meeting schedule"
     _order = "start_date DESC"
+    _inherit = ['mail.thread', 'mail.activity.mixin']
 
     name = fields.Char(
         string="Name", compute="_compute_meeting_name", required=True
@@ -34,10 +86,12 @@ class MeetingSchedule(models.Model):
         ],
     )
     start_date = fields.Datetime(
-        string="Start datetime",
+        string="Start Date",
         default=fields.Date.context_today,
     )
-    end_date = fields.Datetime(string="End datetime", default=fields.Date.context_today)
+    end_date = fields.Datetime(string="End Date", default=fields.Date.context_today)
+    start_minutes = fields.Selection(generate_start_minutes_selection(), string='Start',required=True,default = default_start_minutes)
+    end_minutes = fields.Selection(generate_start_minutes_selection(), string='End',required=True,default=default_end_minutes)
 
     duration = fields.Float(
         string="Duration(hour)",
@@ -116,16 +170,6 @@ class MeetingSchedule(models.Model):
         "res.partner",
         string="Attendees",
     )
-    employee_id = fields.Many2many(
-        "hr.employee",
-        string="Attendees",
-        store=False,
-    )
-
-    # tatol_id = fields.Char(
-    #     string = "Send to",
-    #     readonly=True
-    # )
     is_partner = fields.Boolean(default=True, compute="check_user_in_partner_ids")
     customize = fields.Boolean(string="Customize", default=False)
     is_same_date = fields.Boolean(default=True)
@@ -273,6 +317,19 @@ class MeetingSchedule(models.Model):
         self.weekday = self.convert_to_local(
             str(self.start_date), "Asia/Ho_Chi_Minh"
         ).strftime("%A")
+    @api.onchange("start_minutes", "end_minutes")
+    def _onchange_minutes(self):
+            if self.start_date and self.end_date:
+                start = split_time(str(self.start_minutes))
+                end = split_time(str(self.end_minutes))
+
+                start_date = fields.Datetime.from_string(self.start_date)
+                new_start_date = start_date.replace(hour=int(start["hour"])-7, minute=int(start["minutes"]))
+                self.start_date = fields.Datetime.to_string(new_start_date)
+                print(int(end["minutes"]),"asdasdas")
+                end_date = fields.Datetime.from_string(self.end_date)
+                new_end_date = end_date.replace(hour=int(end["hour"])-7, minute=int(end["minutes"]))
+                self.end_date = fields.Datetime.to_string(new_end_date)
 
     @api.onchange("start_date", "end_date")
     def _onchange_compute_duration(self):
@@ -323,6 +380,8 @@ class MeetingSchedule(models.Model):
                 duration_seconds = end_seconds - start_seconds
                 duration_hours = duration_seconds / 3600
                 record.duration = duration_hours
+            if record.meeting_type != "daily" and record.start_date.date() != record.end_date.date():
+                record.meeting_type = "daily"
 
     @api.onchange("duration_minutes")
     def onchange_duration_minutes(self):
@@ -331,10 +390,13 @@ class MeetingSchedule(models.Model):
                 record.end_date = record.start_date + timedelta(
                     minutes=record.duration_minutes
                 )
+                now_date = record.end_date
                 if record.duration_minutes < 15:
                     record.is_long_meeting = False
                 else:
                     record.is_long_meeting = True
+                    if now_date.date() != record.end_date.date():
+                        record.meeting_type = 'daily'
 
     @api.onchange("start_date", "end_date", "meeting_type")
     def onchange_check_date(self):
@@ -526,49 +588,44 @@ class MeetingSchedule(models.Model):
         new_vals["content_file"] = self.attachment
         return new_vals
 
-    def send_email_to_attendees(self,elements):
-        subject = "Meeting Attendance"
-        sender = self.user_id.email
-        recipients =[]
-        print("send to")
-        for item in elements:
-            users = self.env['res.users'].search([
-                ('id', '=', item)
-            ])
-            recipients.append(users.email)
-        print(recipients,"send to")
-        # recipients = self.partner_ids.mapped("email")
+    def send_email_to_attendees(self):
+        mail_template = "meeting_room.invite_meeting_mail_template"
+        subject_template = "[Metting] Invite Meeting Attendance"
+        self._send_message_auto_subscribe_notify(self.partner_ids, mail_template, subject_template)
 
-        start_date = self.start_date
+    @api.model
+    def _send_message_auto_subscribe_notify(self, users_per_task, mail_template, subject_template):
+        template_id = self.env['ir.model.data']._xmlid_to_res_id(mail_template, raise_if_not_found=False)
+        if not template_id:
+            return
+        view = self.env['ir.ui.view'].browse(template_id)
         date_obj = fields.Datetime.to_string(
             fields.Datetime.context_timestamp(
-                self, fields.Datetime.from_string(start_date)
+                self, fields.Datetime.from_string(self.start_date)
             )
         )
+        for users in users_per_task:
+            if not users:
+                continue
+            values = {
+                'object': self,
+                'date_obj': date_obj,
+                'model_description': "Invite meeting",
+                'access_link': self._notify_get_action_link('view'),
+            }
 
-        room_id = str(self.room_id.id)
-
-        hostname = socket.gethostname()
-        ip_address = socket.gethostbyname(hostname)
-        port = 8069
-        id = self.id
-        url = f"http://{ip_address}:{port}/web#id={id}&menu_id=457&action=558&model=meeting.schedule&view_type=form"
-        body = f"Hello, You are invited to a meeting. Please attend at {date_obj}, room {room_id}.\n\nLink: {url}"
-        try:
-            msg = MIMEMultipart()
-            msg["From"] = sender
-            msg["To"] = ", ".join(recipients)
-            msg["Date"] = formatdate(localtime=True)
-            msg["Subject"] = subject
-            msg.attach(MIMEText(body, "plain"))
-
-            server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-            server.login(self.user_id.email, "wris tnin qncg fkng")
-            server.sendmail(sender, recipients, msg.as_string())
-            server.quit()
-            self._cr.commit()
-        except:
-                print("no")
+            for user in users:
+                values['dear'] = user.name
+                assignation_msg = view._render(values, engine='ir.qweb', minimal_qcontext=True)
+                assignation_msg = self.env['mail.render.mixin']._replace_local_links(assignation_msg)                 
+                self.message_notify(
+                    subject = subject_template,
+                    body = assignation_msg,
+                    partner_ids = [user.id] ,
+                    record_name = self.display_name,
+                    email_layout_xmlid = 'mail.mail_notification_light',
+                    model_description = "Invite meeting",
+                )
 
     def convert_to_local(self, utc_datetime=None, timezone="utc"):
         """Convert UTC time to Localtime"""
@@ -584,35 +641,13 @@ class MeetingSchedule(models.Model):
     # CRUD Methods
     @api.model
     def create(self, vals):
-        try:
-            activity_user_ids = [str(item[2]['activity_user_id']) for item in vals['employee_id'] if len(item) >= 3 and isinstance(item[2], dict) and isinstance(item[2].get('activity_user_id'), int)]
-            print(len(activity_user_ids))
-            if len(activity_user_ids) > 0 :
-                activity_user_id_str = ",".join(activity_user_ids)
-                elements = activity_user_id_str.split(",")
-                elements = list(set(int(element) for element in elements))
-                tatol_user=""
-                print(tatol_user)
-                for item in elements:
-                            find_meeting = self.env["res.users"].search(
-                            [
-                                ("id", "=", item),
-                            ]
-                            )
-                            tatol_user= tatol_user + str(find_meeting.name) + ","
-            
-            # vals['tatol_id'] = tatol_user
-        except:
-            raise ValidationError('Please do not leave any data field blank.')
-        vals['employee_id']= None 
-
         start_date = vals.get("start_date")
+        if not self._check_is_hr() and self._check_is_past_date(start_date):
+            raise ValidationError("Start date cannot be in the past")
         global id
         vals["is_edit"] = True
         meeting_schedule = super(MeetingSchedule, self).create(vals)
 
-        if not self._check_is_hr() and self._check_is_past_date(start_date):
-            raise ValidationError("Start date cannot be in the past")
 
         meeting_schedule._validate_start_date()
 
@@ -621,12 +656,9 @@ class MeetingSchedule(models.Model):
             meeting_schedule.create_daily()
         elif meeting_type == "weekly":
             meeting_schedule.create_weekly()
-        # if "partner_ids" in vals and len(vals["partner_ids"][0][2]) > 0:
-        # print(len(elements))
-        if len(activity_user_ids)>0:
-                id = meeting_schedule.id
-                meeting_schedule.send_email_to_attendees(elements)
-            
+        if "partner_ids" in vals and len(vals["partner_ids"][0][2]) > 0:
+            id = meeting_schedule.id
+            meeting_schedule.send_email_to_attendees()
         return meeting_schedule
 
     def write(self, vals):
@@ -697,3 +729,7 @@ class MeetingSchedule(models.Model):
                     return super(MeetingSchedule, record_to_detele).unlink()
 
             raise Exception("You cannot delete someone else's meeting.")
+
+    @api.model
+    def check_hr(self):
+        return bool(self.env.user.has_group("meeting_room.group_meeting_room_hr"))
