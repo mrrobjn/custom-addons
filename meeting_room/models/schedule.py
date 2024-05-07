@@ -11,7 +11,9 @@ import smtplib
 from datetime import timedelta, datetime, date
 import pytz
 import socket
-
+import magic
+import os
+from tempfile import NamedTemporaryFile
 
 class MeetingSchedule(models.Model):
     _name = "meeting.schedule"
@@ -126,6 +128,7 @@ class MeetingSchedule(models.Model):
     # upload + download document
     def _inverse_content(self):
         updates = defaultdict(set)
+
         for record in self:
             values = self._get_content_inital_vals()
             values = record._update_content_vals(values)
@@ -271,6 +274,29 @@ class MeetingSchedule(models.Model):
         self.weekday = self.convert_to_local(
             str(self.start_date), "Asia/Ho_Chi_Minh"
         ).strftime("%A")
+
+    @api.constrains("attachment")
+    def _validate_attachment(self):
+        allowed_extensions = ['txt', 'doc', 'docx',
+                              'xlsx', 'csv',
+                              'ppt', 'pptx',
+                              'pdf']
+
+        for record in self:
+            if record.attachment:
+                if '.' not in record.filename or record.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
+                    raise ValidationError('Invalid attachment file type')
+
+                max_file_size = 20 * 1024 * 1024
+
+                with NamedTemporaryFile(delete=False) as temp_file:
+                    temp_file.write(base64.b64decode(record.attachment))
+                file_size = os.path.getsize(temp_file.name)
+                size_in_mb = file_size / 1024 / 1024
+                os.unlink(temp_file.name)
+                if file_size > max_file_size:
+                    raise ValidationError(f"Attachment file size is {size_in_mb} mb "
+                                          f"which exceeds the maximum file size allowed of {max_file_size / 1024 / 1024} mb")
 
     @api.onchange("start_date", "end_date")
     def _onchange_compute_duration(self):
@@ -522,6 +548,7 @@ class MeetingSchedule(models.Model):
     def _update_content_vals(self, vals):
         new_vals = vals.copy()
         new_vals["content_file"] = self.attachment
+
         return new_vals
 
     def send_email_to_attendees(self):
@@ -553,7 +580,7 @@ class MeetingSchedule(models.Model):
             for user in users:
                 values['dear'] = user.name
                 assignation_msg = view._render(values, engine='ir.qweb', minimal_qcontext=True)
-                assignation_msg = self.env['mail.render.mixin']._replace_local_links(assignation_msg)                 
+                assignation_msg = self.env['mail.render.mixin']._replace_local_links(assignation_msg)
                 self.message_notify(
                     subject = subject_template,
                     body = assignation_msg,
