@@ -11,6 +11,7 @@ import smtplib
 from datetime import timedelta, datetime, date
 import pytz
 import socket
+
 def generate_start_minutes_selection():
     start_minutes_selection = []
     start_hour = 7
@@ -46,9 +47,8 @@ def default_start_minutes(self):
         current_time = datetime.now().time()
         current_hour = current_time.hour + 7
         current_minute = ((current_time.minute // 15)+1) * 15
-        if current_minute >= 60:
-            current_hour = current_hour+1 
-            current_minute=current_minute-60
+        if current_hour == 23 and current_minute==45:
+            raise UserError('System is close')
         formatted_hour = f"{current_hour:02d}"
         formatted_minute = f"{current_minute:02d}"
         return f"{formatted_hour}:{formatted_minute}"
@@ -86,10 +86,10 @@ class MeetingSchedule(models.Model):
         ],
     )
     start_date = fields.Datetime(
-        string="Start Date",
+        string="Start datetime",
         default=fields.Date.context_today,
     )
-    end_date = fields.Datetime(string="End Date", default=fields.Date.context_today)
+    end_date = fields.Datetime(string="End datetime", default=fields.Date.context_today)
     start_minutes = fields.Selection(generate_start_minutes_selection(), string='Start',required=True,default = default_start_minutes)
     end_minutes = fields.Selection(generate_start_minutes_selection(), string='End',required=True,default=default_end_minutes)
 
@@ -171,6 +171,7 @@ class MeetingSchedule(models.Model):
         string="Attendees",
     )
     is_partner = fields.Boolean(default=True, compute="check_user_in_partner_ids")
+    for_attachment = fields.Boolean(default=True, compute="check_for_attachment")
     customize = fields.Boolean(string="Customize", default=False)
     is_same_date = fields.Boolean(default=True)
     is_long_meeting = fields.Boolean(default=True)
@@ -212,7 +213,13 @@ class MeetingSchedule(models.Model):
             rec.check_access_team_id = bool(
                 rec._check_is_hr() or rec.user_id.id == self.env.uid
             )
-
+    @api.depends("user_id")
+    def check_for_attachment(self):
+        for rec in self:
+            rec.for_attachment = bool(
+                rec._check_is_hr() or self.env.user.partner_id.id in rec.partner_ids.ids or self.env.uid == rec.create_uid.id
+            )
+                
     @api.depends("name")
     def _compute_meeting_name(self):
         for record in self:
@@ -283,7 +290,8 @@ class MeetingSchedule(models.Model):
                 local_tz
             )
             end_date = fields.Datetime.from_string(record.end_date).astimezone(local_tz)
-
+            # if record.meeting_type != "daily" and start_date.date() != end_date.date():
+            #     raise ValidationError("The meeting must end within the same date")
 
     @api.constrains("repeat_weekly")
     def _check_max_value(self):
@@ -388,11 +396,10 @@ class MeetingSchedule(models.Model):
                 record.end_date = record.start_date + timedelta(
                     minutes=record.duration_minutes
                 )
-                now_date = record.end_date
                 if record.duration_minutes < 15:
                     record.is_long_meeting = False
                 else:
-                    record.is_long_meeting = True                       
+                    record.is_long_meeting = True
 
     @api.onchange("start_date", "end_date", "meeting_type")
     def onchange_check_date(self):
@@ -450,6 +457,14 @@ class MeetingSchedule(models.Model):
                 self.saturday = True
             elif day_of_week == 6:
                 self.sunday = True
+
+    @api.onchange("start_date", "end_date")
+    def _onchange_duration_minutes(self):
+        for record in self:
+            if record.start_date and record.end_date:
+                duration = record.end_date - record.start_date
+                minutes = duration.total_seconds() // 60
+                record.duration_minutes = int(minutes)
 
     # Business Logic Methods
     def create_daily(self):
@@ -545,6 +560,7 @@ class MeetingSchedule(models.Model):
                 schedules_to_create.extend(new_schedules)
 
         self.env["meeting.schedule"].create(schedules_to_create)
+
 
     def _check_is_hr(self):
         return bool(self.env.user.has_group("meeting_room.group_meeting_room_hr"))
