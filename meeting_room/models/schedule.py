@@ -280,23 +280,24 @@ class MeetingSchedule(models.Model):
         allowed_extensions = ['txt', 'doc', 'docx',
                               'xlsx', 'csv',
                               'ppt', 'pptx',
-                              'pdf']
+                              'pdf',
+                              'png', 'jpg', 'jpeg']
 
         for record in self:
             if record.attachment:
                 if '.' not in record.filename or record.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
                     raise ValidationError('Invalid attachment file type')
 
-                max_file_size = 20 * 1024 * 1024
+                max_file_size = 20 * 1000 * 1000
 
                 with NamedTemporaryFile(delete=False) as temp_file:
                     temp_file.write(base64.b64decode(record.attachment))
                 file_size = os.path.getsize(temp_file.name)
-                size_in_mb = file_size / 1024 / 1024
+                size_in_mb = round(file_size / 1000 / 1000, 2)
                 os.unlink(temp_file.name)
                 if file_size > max_file_size:
-                    raise ValidationError(f"Attachment file size is {size_in_mb} mb "
-                                          f"which exceeds the maximum file size allowed of {max_file_size / 1024 / 1024} mb")
+                    raise ValidationError(f"Attachment file size is {size_in_mb} MB "
+                                          f"which exceeds the maximum file size allowed of {max_file_size / 1000 / 1000} MB")
 
     @api.onchange("start_date", "end_date")
     def _onchange_compute_duration(self):
