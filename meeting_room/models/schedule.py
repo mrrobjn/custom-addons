@@ -49,6 +49,9 @@ def default_start_minutes(self):
         current_minute = ((current_time.minute // 15)+1) * 15
         if current_hour == 23 and current_minute==45:
             raise UserError('System is close')
+        if current_minute >= 60:
+            current_hour = current_hour+1 
+            current_minute=current_minute-60
         formatted_hour = f"{current_hour:02d}"
         formatted_minute = f"{current_minute:02d}"
         return f"{formatted_hour}:{formatted_minute}"
