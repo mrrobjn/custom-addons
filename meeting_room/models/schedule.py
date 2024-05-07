@@ -325,7 +325,6 @@ class MeetingSchedule(models.Model):
                 start_date = fields.Datetime.from_string(self.start_date)
                 new_start_date = start_date.replace(hour=int(start["hour"])-7, minute=int(start["minutes"]))
                 self.start_date = fields.Datetime.to_string(new_start_date)
-                print(int(end["minutes"]),"asdasdas")
                 end_date = fields.Datetime.from_string(self.end_date)
                 new_end_date = end_date.replace(hour=int(end["hour"])-7, minute=int(end["minutes"]))
                 self.end_date = fields.Datetime.to_string(new_end_date)
@@ -393,9 +392,7 @@ class MeetingSchedule(models.Model):
                 if record.duration_minutes < 15:
                     record.is_long_meeting = False
                 else:
-                    record.is_long_meeting = True
-                    if now_date.date() != record.end_date.date():
-                        record.meeting_type = 'daily'
+                    record.is_long_meeting = True                       
 
     @api.onchange("start_date", "end_date", "meeting_type")
     def onchange_check_date(self):
@@ -510,14 +507,17 @@ class MeetingSchedule(models.Model):
 
     def create_weekly(self):
         schedules_to_create = []
+        firt = True
         for schedule in self:
             start_date = fields.Datetime.from_string(schedule.start_date)
-
             self.write({"meeting_type": "normal"})
             start = split_time(str(self.start_minutes))
             end = split_time(str(self.end_minutes))
             number_start = int(start["hour"])*60 + int(start["minutes"])
             number_end = int(end["hour"])*60 + int(end["minutes"])
+
+            if schedule.is_first_tag==True:
+                self.write({'end_date':start_date+timedelta(minutes=int(number_end-number_start))})
 
             for i in range(schedule.repeat_weekly + 1):
                 new_schedules = []
@@ -637,23 +637,11 @@ class MeetingSchedule(models.Model):
     # CRUD Methods
     @api.model
     def create(self, vals):
-        start_date = fields.Datetime.from_string(vals.get("start_date"))
+        start_date = vals.get("start_date")
         if not self._check_is_hr() and self._check_is_past_date(start_date):
             raise ValidationError("Start date cannot be in the past")
         global id
-
         vals["is_edit"] = True
-        print(str(vals.get("start_minutes")))
-        
-        try:
-            start = split_time(str(vals.get("start_minutes")))
-            end = split_time(str(vals.get("end_minutes")))
-                
-            number_start = int(start["hour"])*60 + int(start["minutes"])
-            number_end = int(end["hour"])*60 + int(end["minutes"])
-            vals["end_date"] = start_date + timedelta(minutes=int(number_end-number_start))
-        except:
-            print()
         meeting_schedule = super(MeetingSchedule, self).create(vals)
 
 
