@@ -150,6 +150,7 @@
                         <h5>-</h5>
                         <field name="end_minutes" widget="selection" html_attrs="{'size': '5'}" style="margin-left:5%"></field>
                         </div>
+                        <field name="is_first_end_date" invisible="1"></field>
                         <field name="duration_minutes"
                                 readonly="True"
                                 ></field>
@@ -160,6 +161,7 @@
                                 widget="boolean_toggle"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'daily'),('is_edit', '=', True)]}" />
                             <field name="is_edit" invisible="1" />
+                            <field name="is_first_event" invisible="1" />
                         </group>
                     </group>
                     <group
