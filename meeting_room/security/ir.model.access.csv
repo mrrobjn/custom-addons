@@ -1,4 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_meeting_schedule_employee,meeting_room.employee,model_meeting_schedule,meeting_room.group_meeting_room_employee,1,1,1,1
-access_meeting_room_employee,meeting_room.employee,model_meeting_room,meeting_room.group_meeting_room_employee,1,0,0,0
-access_meeting_room_hr,meeting_room.hr,model_meeting_room,meeting_room.group_meeting_room_hr,1,1,1,1

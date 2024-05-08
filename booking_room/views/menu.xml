@@ -2,22 +2,22 @@
 
     <menuitem
         id="menu_meeting_root"
-        name="Meeting"
+        name="Booking Room"
         sequence="0" />
 
     <menuitem
         id="menu_appointment_master"
         name="Room"
-        action="meeting_room.action_meeting_room"
+        action="booking_room.action_booking_room"
         parent="menu_meeting_root"
         sequence="2"
-        groups="meeting_room.group_meeting_room_hr"
+        groups="booking_room.group_booking_room_hr"
     />
 
     <menuitem
         id="menu_schedule_master"
-        name="Schedule"
-        action="meeting_room.action_meeting_schedule"
+        name="Booking"
+        action="booking_room.action_meeting_schedule"
         parent="menu_meeting_root"
         sequence="1" />
 

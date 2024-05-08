@@ -1,24 +1,24 @@
 # -*- coding: utf-8 -*-
 {
-    "name": "Meeting Room Management",
+    "name": "Booking Room",
     "summary": """
-      Meeting Room Management system""",
+      Booking Room""",
     "description": """
-        Meeting Room Management
+        Booking Room
     """,
-    "author": "Duy Huynh Gia",
+    "author": "Odoo Intern",
     "website": "http://www.yourcompany.com",
     "category": "Uncategorized",
     "version": "0.1",
     "depends": ["mail","calendar"],
     "assets": {
         "web.assets_backend": [
-            "meeting_room/static/src/css/meeting_room.css",
-            "meeting_room/static/src/js/msm.js",
-            "meeting_room/static/src/xml/delete_event.xml"
+            "booking_room/static/src/css/booking_room.css",
+            "booking_room/static/src/js/msm.js",
+            "booking_room/static/src/xml/delete_event.xml"
         ],
         'web.assets_qweb': [
-            'meeting_room/static/src/xml/delete_event.xml'
+            'booking_room/static/src/xml/delete_event.xml'
         ],
     },
     "data": [
