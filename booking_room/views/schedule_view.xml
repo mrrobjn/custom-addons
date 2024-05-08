@@ -140,13 +140,12 @@
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
                             <field name="end_date" widget="date"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)],'invisible': [('meeting_type', '!=', 'daily')]}" />
+                            <field name="weekday"></field>
                             <field name="repeat_weekly"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
                         </group>
                         <group>
                             <div class="d-flex" style="width:150%; margin-bottom:2%;margin-top:1%">
-                                <field name="weekday"
-                                    style="font-weight:900;color:#212529; margin-right:10%"></field>
                                 <field name="start_minutes" widget="selection"
                                     attrs="{'readonly': [('check_access_team_id', '=', False)]}"
                                     html_attrs="{'size': '5'}" style="margin-right:5%"></field>
@@ -167,6 +166,7 @@
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'daily'),('is_edit', '=', True)]}" />
                             <field name="is_edit" invisible="1" />
                             <field name="is_first_event" invisible="1" />
+                            <field name="is_first_tag" invisible="1" />
                         </group>
                     </group>
                     <group
@@ -187,7 +187,8 @@
                     </group>
                     <!-- attachment -->
                     <group
-                        attrs="{'invisible': [('is_partner', '=', False)]}">
+                        attrs="{'invisible': [('for_attachment', '=', False)]}">
+                        <field name="for_attachment" invisible="1" />
                         <field name="is_partner" invisible="1" />
                         <field name="attachment" filename="filename" mimetype="mimetype"
                             widget="preview_binary"
@@ -226,7 +227,7 @@
     </record>
 
     <record id="action_meeting_schedule" model="ir.actions.act_window">
-        <field name="name">Meeting Schedule</field>
+        <field name="name">Booking</field>
         <field name="type">ir.actions.act_window</field>
         <field name="res_model">meeting.schedule</field>
         <field name="view_mode">calendar,kanban,tree,form</field>

@@ -3,27 +3,27 @@
 
     <data noupdate="0">
 
-        <record id="module_category_meeting_room" model="ir.module.category">
+        <record id="module_category_booking_room" model="ir.module.category">
             <field name="name">Meeting Room</field>
             <field name="sequence">1</field>
         </record>
 
-        <record id="group_meeting_room_employee" model="res.groups">
+        <record id="group_booking_room_employee" model="res.groups">
             <field name="name">Employee</field>
-            <field name="category_id" ref="module_category_meeting_room" />
+            <field name="category_id" ref="module_category_booking_room" />
             <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
         </record>
 
-        <record id="group_meeting_room_hr" model="res.groups">
+        <record id="group_booking_room_hr" model="res.groups">
             <field name="name">HR</field>
-            <field name="category_id" ref="module_category_meeting_room" />
-            <field name="implied_ids" eval="[(4, ref('group_meeting_room_employee'))]" />
+            <field name="category_id" ref="module_category_booking_room" />
+            <field name="implied_ids" eval="[(4, ref('group_booking_room_employee'))]" />
         </record>
 
         <record id="meeting_responsible_rule_1" model="ir.rule">
             <field name="name">Meeting Edit Access 1</field>
-            <field name="model_id" ref="meeting_room.model_meeting_schedule" />
-            <field name="groups" eval="[(4, ref('group_meeting_room_employee'))]" />
+            <field name="model_id" ref="booking_room.model_meeting_schedule" />
+            <field name="groups" eval="[(4, ref('group_booking_room_employee'))]" />
             <field name="perm_read" eval="True" />
             <field name="perm_write" eval="False" />
             <field name="perm_create" eval="False" />
@@ -33,8 +33,8 @@
         <record id="meeting_responsible_rule_2" model="ir.rule">
             <field name="name">Meeting Edit Access 2</field>
             <field name="domain_force">[('user_id','=',user.id)]</field>
-            <field name="model_id" ref="meeting_room.model_meeting_schedule" />
-            <field name="groups" eval="[(4, ref('group_meeting_room_employee'))]" />
+            <field name="model_id" ref="booking_room.model_meeting_schedule" />
+            <field name="groups" eval="[(4, ref('group_booking_room_employee'))]" />
             <field name="perm_unlink" eval="True" />
             <field name="perm_write" eval="True" />
             <field name="perm_read" eval="True" />
@@ -43,8 +43,8 @@
 
         <record id="meeting_responsible_rule_3" model="ir.rule">
             <field name="name">Meeting Edit Access 3</field>
-            <field name="model_id" ref="meeting_room.model_meeting_schedule" />
-            <field name="groups" eval="[(4, ref('group_meeting_room_hr'))]" />
+            <field name="model_id" ref="booking_room.model_meeting_schedule" />
+            <field name="groups" eval="[(4, ref('group_booking_room_hr'))]" />
             <field name="perm_unlink" eval="True" />
             <field name="perm_write" eval="True" />
             <field name="perm_read" eval="True" />

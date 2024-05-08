@@ -1,4 +1,4 @@
-odoo.define("meeting_room.schedule_view_calendar", function (require) {
+odoo.define("booking_room.schedule_view_calendar", function (require) {
   "use strict";
   var core = require("web.core");
   var Dialog = require("web.Dialog");
@@ -76,7 +76,7 @@ odoo.define("meeting_room.schedule_view_calendar", function (require) {
       var dialog = new Dialog(this, {
         title: _t("Delete Confirmation"),
         size: "medium",
-        $content: $(QWeb.render("meeting_room.RecurrentEventUpdate", {})),
+        $content: $(QWeb.render("booking_room.RecurrentEventUpdate", {})),
         buttons: [
           {
             text: _t("Delete"),

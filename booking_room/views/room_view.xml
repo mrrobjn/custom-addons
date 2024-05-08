@@ -40,7 +40,7 @@
         </field>
     </record>
 
-    <record id="action_meeting_room" model="ir.actions.act_window">
+    <record id="action_booking_room" model="ir.actions.act_window">
         <field name="name">Room</field>
         <field name="type">ir.actions.act_window</field>
         <field name="res_model">meeting.room</field>
