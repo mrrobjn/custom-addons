@@ -1,3 +1,4 @@
+
 from odoo import models, fields, api, tools, _
 from odoo.exceptions import ValidationError, UserError
 from datetime import timedelta, datetime
@@ -11,6 +12,9 @@ import smtplib
 from datetime import timedelta, datetime, date
 import pytz
 import socket
+import magic
+import os
+from tempfile import NamedTemporaryFile
 def generate_start_minutes_selection():
     start_minutes_selection = []
     start_hour = 7
@@ -46,6 +50,8 @@ def default_start_minutes(self):
         current_time = datetime.now().time()
         current_hour = current_time.hour + 7
         current_minute = ((current_time.minute // 15)+1) * 15
+        if current_hour == 23 and current_minute==45:
+            raise UserError('System is close')
         if current_minute >= 60:
             current_hour = current_hour+1 
             current_minute=current_minute-60
@@ -63,7 +69,6 @@ def default_end_minutes(self):
         formatted_hour = f"{current_hour:02d}"
         formatted_minute = f"{current_minute:02d}"
         return f"{formatted_hour}:{formatted_minute}"
-
 class MeetingSchedule(models.Model):
     _name = "meeting.schedule"
     _description = "Meeting schedule"
@@ -86,10 +91,10 @@ class MeetingSchedule(models.Model):
         ],
     )
     start_date = fields.Datetime(
-        string="Start Date",
+        string="Start datetime",
         default=fields.Date.context_today,
     )
-    end_date = fields.Datetime(string="End Date", default=fields.Date.context_today)
+    end_date = fields.Datetime(string="End datetime", default=fields.Date.context_today)
     start_minutes = fields.Selection(generate_start_minutes_selection(), string='Start',required=True,default = default_start_minutes)
     end_minutes = fields.Selection(generate_start_minutes_selection(), string='End',required=True,default=default_end_minutes)
 
@@ -171,13 +176,17 @@ class MeetingSchedule(models.Model):
         string="Attendees",
     )
     is_partner = fields.Boolean(default=True, compute="check_user_in_partner_ids")
+    for_attachment = fields.Boolean(default=True, compute="check_for_attachment")
     customize = fields.Boolean(string="Customize", default=False)
     is_same_date = fields.Boolean(default=True)
     is_long_meeting = fields.Boolean(default=True)
+    is_first_event = fields.Boolean(default=True)
+    is_first_end_date = fields.Datetime()
 
     # upload + download document
     def _inverse_content(self):
         updates = defaultdict(set)
+
         for record in self:
             values = self._get_content_inital_vals()
             values = record._update_content_vals(values)
@@ -212,7 +221,13 @@ class MeetingSchedule(models.Model):
             rec.check_access_team_id = bool(
                 rec._check_is_hr() or rec.user_id.id == self.env.uid
             )
-
+    @api.depends("user_id")
+    def check_for_attachment(self):
+        for rec in self:
+            rec.for_attachment = bool(
+                rec._check_is_hr() or self.env.user.partner_id.id in rec.partner_ids.ids or self.env.uid == rec.create_uid.id
+            )
+                
     @api.depends("name")
     def _compute_meeting_name(self):
         for record in self:
@@ -283,7 +298,8 @@ class MeetingSchedule(models.Model):
                 local_tz
             )
             end_date = fields.Datetime.from_string(record.end_date).astimezone(local_tz)
-
+            if record.meeting_type != "daily" and start_date.date() != end_date.date():
+                raise ValidationError("The meeting must end within the same date")
 
     @api.constrains("repeat_weekly")
     def _check_max_value(self):
@@ -316,7 +332,7 @@ class MeetingSchedule(models.Model):
         self.weekday = self.convert_to_local(
             str(self.start_date), "Asia/Ho_Chi_Minh"
         ).strftime("%A")
-    @api.onchange("start_minutes", "end_minutes")
+    @api.onchange("start_minutes", "end_minutes","start_date", "end_date")
     def _onchange_minutes(self):
             if self.start_date and self.end_date:
                 start = split_time(str(self.start_minutes))
@@ -328,6 +344,30 @@ class MeetingSchedule(models.Model):
                 end_date = fields.Datetime.from_string(self.end_date)
                 new_end_date = end_date.replace(hour=int(end["hour"])-7, minute=int(end["minutes"]))
                 self.end_date = fields.Datetime.to_string(new_end_date)
+
+    @api.constrains("attachment")
+    def _validate_attachment(self):
+        allowed_extensions = ['txt', 'doc', 'docx',
+                              'xlsx', 'csv',
+                              'ppt', 'pptx',
+                              'pdf',
+                              'png', 'jpg', 'jpeg']
+
+        for record in self:
+            if record.attachment:
+                if '.' not in record.filename or record.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
+                    raise ValidationError('Invalid attachment file type')
+
+                max_file_size = 20 * 1000 * 1000
+
+                with NamedTemporaryFile(delete=False) as temp_file:
+                    temp_file.write(base64.b64decode(record.attachment))
+                file_size = os.path.getsize(temp_file.name)
+                size_in_mb = round(file_size / 1000 / 1000, 2)
+                os.unlink(temp_file.name)
+                if file_size > max_file_size:
+                    raise ValidationError(f"Attachment file size is {size_in_mb} MB "
+                                          f"which exceeds the maximum file size allowed of {max_file_size / 1000 / 1000} MB")
 
     @api.onchange("start_date", "end_date")
     def _onchange_compute_duration(self):
@@ -352,6 +392,7 @@ class MeetingSchedule(models.Model):
                 self.sunday = {"readonly": True}
 
             local_start += timedelta(days=1)
+        
 
         for record in self:
             if record.start_date and record.end_date:
@@ -378,8 +419,6 @@ class MeetingSchedule(models.Model):
                 duration_seconds = end_seconds - start_seconds
                 duration_hours = duration_seconds / 3600
                 record.duration = duration_hours
-            if record.start_date.date() != record.end_date.date():
-                record.meeting_type = "daily"
 
     @api.onchange("duration_minutes")
     def onchange_duration_minutes(self):
@@ -388,15 +427,15 @@ class MeetingSchedule(models.Model):
                 record.end_date = record.start_date + timedelta(
                     minutes=record.duration_minutes
                 )
-                now_date = record.end_date
                 if record.duration_minutes < 15:
                     record.is_long_meeting = False
                 else:
-                    record.is_long_meeting = True                       
+                    record.is_long_meeting = True
 
     @api.onchange("start_date", "end_date", "meeting_type")
     def onchange_check_date(self):
         for record in self:
+            print(record.start_date,"startt",record.end_date,"ennn")
             user_tz = self.env.user.tz or "UTC"
             local_tz = timezone(user_tz)
             start_date = fields.Datetime.from_string(record.start_date).astimezone(
@@ -408,48 +447,76 @@ class MeetingSchedule(models.Model):
                 and start_date.date() != end_date.date()
                 and record.duration_minutes != 0
             ):
+                if record.start_date.date() != record.end_date.date() and record.is_first_event==True:
+                    print('s1',self.is_first_event)
+                    record.meeting_type = "daily"
+                    # record.is_first_end_date = record
+                    record.is_first_event= False
+                else :
+                    start = split_time(str(self.start_minutes))
+                    end = split_time(str(self.end_minutes))
+                    new_start_date = int(start["hour"])*60 +int(start["minutes"])
+                    new_end_date = int(end["hour"])*60 +int(end["minutes"])
+                    record.end_date = record.start_date +timedelta(minutes=int(new_end_date-new_start_date))
+
                 record.is_same_date = False
             else:
                 record.is_same_date = True
+          
 
     @api.onchange("start_date", "meeting_type")
     def onchange_start_time(self):
-        if self.meeting_type == "daily":
-            self.monday = True
-            self.tuesday = True
-            self.thursday = True
-            self.wednesday = True
-            self.friday = True
-            self.saturday = False
-            self.sunday = False
-        if self.meeting_type == "weekly":
-            self.monday = False
-            self.tuesday = False
-            self.thursday = False
-            self.wednesday = False
-            self.friday = False
-            self.saturday = False
-            self.sunday = False
+        for record in self:
+            if record.meeting_type == "daily":
+                record.monday = True
+                record.tuesday = True
+                record.thursday = True
+                record.wednesday = True
+                record.friday = True
+                record.saturday = False
+                record.sunday = False
+            if record.meeting_type == "weekly":
+                record.monday = False
+                record.tuesday = False
+                record.thursday = False
+                record.wednesday = False
+                record.friday = False
+                record.saturday = False
+                record.sunday = False
 
-            local_start = self.convert_to_local(
-                str(self.start_date), "Asia/Ho_Chi_Minh"
-            )
-            day_of_week = local_start.weekday()
-            if day_of_week == 0:
-                self.monday = True
-            elif day_of_week == 1:
-                self.tuesday = True
-            elif day_of_week == 2:
+                local_start = record.convert_to_local(
+                    str(record.start_date), "Asia/Ho_Chi_Minh"
+                )
+                day_of_week = local_start.weekday()
+                if day_of_week == 0:
+                    record.monday = True
+                elif day_of_week == 1:
+                    record.tuesday = True
+                elif day_of_week == 2:
 
-                self.wednesday = True
-            elif day_of_week == 3:
-                self.thursday = True
-            elif day_of_week == 4:
-                self.friday = True
-            elif day_of_week == 5:
-                self.saturday = True
-            elif day_of_week == 6:
-                self.sunday = True
+                    record.wednesday = True
+                elif day_of_week == 3:
+                    record.thursday = True
+                elif day_of_week == 4:
+                    record.friday = True
+                elif day_of_week == 5:
+                    record.saturday = True
+                elif day_of_week == 6:
+                    record.sunday = True
+
+    @api.onchange("start_date", "end_date")
+    def _onchange_duration_minutes(self):
+        for record in self:
+            # start = split_time(str(self.start_minutes))
+            # end = split_time(str(self.end_minutes))
+            # new_start_date = int(start["hour"])*60 +int(start["minutes"])
+            # new_end_date = int(end["hour"])*60 +int(end["minutes"])
+            # record.end_date = record.start_date +timedelta(minutes=int(new_end_date-new_start_date))
+
+            if record.start_date and record.end_date:
+                duration = record.end_date - record.start_date
+                minutes = duration.total_seconds() // 60
+                record.duration_minutes = int(minutes)
 
     # Business Logic Methods
     def create_daily(self):
@@ -507,22 +574,14 @@ class MeetingSchedule(models.Model):
 
     def create_weekly(self):
         schedules_to_create = []
-        firt = True
         for schedule in self:
             start_date = fields.Datetime.from_string(schedule.start_date)
-            self.write({"meeting_type": "normal"})
-            start = split_time(str(self.start_minutes))
-            end = split_time(str(self.end_minutes))
-            number_start = int(start["hour"])*60 + int(start["minutes"])
-            number_end = int(end["hour"])*60 + int(end["minutes"])
 
-            if schedule.is_first_tag==True:
-                self.write({'end_date':start_date+timedelta(minutes=int(number_end-number_start))})
+            self.write({"meeting_type": "normal"})
 
             for i in range(schedule.repeat_weekly + 1):
                 new_schedules = []
                 current_date = start_date + timedelta(weeks=i)
-                
                 if current_date != start_date:
                     new_schedules.append(
                         {
@@ -531,7 +590,7 @@ class MeetingSchedule(models.Model):
                             "description": schedule.description,
                             "start_date": current_date,
                             "end_date": current_date
-                            + timedelta(minutes=int(number_end-number_start)),
+                            + timedelta(minutes=self.duration_minutes),
                             "meeting_type": "normal",
                             "room_id": schedule.room_id.id,
                             "company_id": schedule.company_id.id,
@@ -582,6 +641,7 @@ class MeetingSchedule(models.Model):
     def _update_content_vals(self, vals):
         new_vals = vals.copy()
         new_vals["content_file"] = self.attachment
+
         return new_vals
 
     def send_email_to_attendees(self):
@@ -613,7 +673,7 @@ class MeetingSchedule(models.Model):
             for user in users:
                 values['dear'] = user.name
                 assignation_msg = view._render(values, engine='ir.qweb', minimal_qcontext=True)
-                assignation_msg = self.env['mail.render.mixin']._replace_local_links(assignation_msg)                 
+                assignation_msg = self.env['mail.render.mixin']._replace_local_links(assignation_msg)
                 self.message_notify(
                     subject = subject_template,
                     body = assignation_msg,
