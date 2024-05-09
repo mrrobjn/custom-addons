@@ -331,7 +331,18 @@ class MeetingSchedule(models.Model):
         self.weekday = self.convert_to_local(
             str(self.start_date), "Asia/Ho_Chi_Minh"
         ).strftime("%A")
+    @api.onchange("start_minutes", "end_minutes","start_date", "end_date")
+    def _onchange_minutes(self):
+            if self.start_date and self.end_date:
+                start = split_time(str(self.start_minutes))
+                end = split_time(str(self.end_minutes))
 
+                start_date = fields.Datetime.from_string(self.start_date)
+                new_start_date = start_date.replace(hour=int(start["hour"])-7, minute=int(start["minutes"]))
+                self.start_date = fields.Datetime.to_string(new_start_date)
+                end_date = fields.Datetime.from_string(self.end_date)
+                new_end_date = end_date.replace(hour=int(end["hour"])-7, minute=int(end["minutes"]))
+                self.end_date = fields.Datetime.to_string(new_end_date)
     @api.constrains("attachment")
     def _validate_attachment(self):
         allowed_extensions = [
