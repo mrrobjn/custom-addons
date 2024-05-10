@@ -136,25 +136,36 @@
                     </group>
                     <group>
                         <group>
-                            <field name="start_date" widget="date"
+                            <field name="start_date" invisible="1"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
-                            <field name="end_date" widget="date"
-                                attrs="{'readonly': [('check_access_team_id', '=', False)],'invisible': [('meeting_type', '!=', 'daily')]}" />
-                            <field name="weekday" attrs="{'invisible':[('meeting_type', '=', 'daily')]}"></field>
-                            <field name="repeat_weekly"
-                                attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
-                        </group>
-                        <group>
-                            <div class="d-flex" style="width:150%; margin-bottom:2%;margin-top:1%">
+                            <field name="end_date" invisible="1"
+                                attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
+                            <label for="s_date" class="o_form_label o_readonly_modifier"
+                                string="Date" />
+                            <div class="o_row">
+                                <field name="s_date" widget="daterange" class="oe_inline"
+                                    options="{'related_end_date': 'e_date',}"
+                                    attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
+                                <i class="fa fa-long-arrow-right mx-2" />
+                                <field name="e_date" widget="daterange" class="oe_inline"
+                                    options="{'related_start_date': 's_date'}"
+                                    attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
+                            </div>
+                            <label for="start_minutes" class="o_form_label o_readonly_modifier"
+                                string="Hour" />
+                            <div class="d-flex o-row">
                                 <field name="start_minutes" widget="selection"
                                     attrs="{'readonly': [('check_access_team_id', '=', False)]}"
-                                    html_attrs="{'size': '5'}" style="margin-right:5%"></field>
-                                <h5>-</h5>
+                                ></field>
+                                <i class="fa fa-long-arrow-right mx-2" />
                                 <field name="end_minutes" widget="selection"
                                     attrs="{'readonly': [('check_access_team_id', '=', False)]}"
-                                    html_attrs="{'size': '5'}" style="margin-left:5%"></field>
+                                ></field>
                             </div>
-                            <field name="is_first_end_date" invisible="1"></field>
+                            <field name="weekday"
+                                attrs="{'invisible':[('meeting_type', '=', 'daily')]}" readonly="1"></field>
+                            <field name="repeat_weekly"
+                                attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
                         </group>
                         <group>
                             <field name="duration" invisible="1"></field>
