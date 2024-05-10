@@ -94,8 +94,10 @@ class MeetingSchedule(models.Model):
             ("weekly", "Weekly Meeting"),
         ],
     )
-    start_date = fields.Datetime(string="Start Date")
-    end_date = fields.Datetime(string="End Date")
+    start_date = fields.Datetime(string="Start Date Time")
+    end_date = fields.Datetime(string="End Date Time")
+    s_date = fields.Date(string="Start Date")
+    e_date = fields.Date(string="End Date")
     start_minutes = fields.Selection(
         generate_start_minutes_selection(),
         string="Start",
@@ -131,7 +133,7 @@ class MeetingSchedule(models.Model):
     time = fields.Char("Time", compute="_compute_date_start")
 
     repeat_weekly = fields.Integer(string="Repeat Weekly", default=1)
-    weekday = fields.Char(string="Day of week", compute="_compute_weekday_selected")
+    weekday = fields.Char(string="Day of week")
 
     monday = fields.Boolean(string="Monday", default=True, readonly=False)
     tuesday = fields.Boolean(string="Tuesday", default=True, readonly=False)
@@ -165,7 +167,6 @@ class MeetingSchedule(models.Model):
     is_same_date = fields.Boolean(default=True)
     is_long_meeting = fields.Boolean(default=True)
     is_first_event = fields.Boolean(default=True)
-    is_first_end_date = fields.Datetime()
 
     # upload + download document
     def _inverse_content(self):
@@ -268,13 +269,7 @@ class MeetingSchedule(models.Model):
                     raise ValidationError("The room is already booked for this time period.")
 
     # Onchange
-    @api.onchange("start_date")
-    def _compute_weekday_selected(self):
-        self.weekday = self.convert_to_local(
-            str(self.start_date), "Asia/Ho_Chi_Minh"
-        ).strftime("%A")
-
-    @api.onchange("start_minutes", "end_minutes","start_date", "end_date")
+    @api.onchange("start_minutes", "end_minutes")
     def _onchange_minutes(self):
             if self.start_date and self.end_date:
                 start = split_time(str(self.start_minutes))
@@ -346,6 +341,38 @@ class MeetingSchedule(models.Model):
             duration_seconds = end_seconds - start_seconds
             duration_hours = duration_seconds / 3600
             self.duration = duration_hours
+
+    @api.onchange("start_date")
+    def _onchange_start_date(self):
+        if self.start_date:
+            local_offset = self.get_local_tz(True)
+            adjusted_start_date = self.start_date + timedelta(hours=local_offset)
+            self.weekday = adjusted_start_date.strftime("%A")
+            self.s_date = fields.Date.to_string(adjusted_start_date.date())
+
+    @api.onchange("end_date")
+    def _onchange_end_date(self):
+        if self.end_date:
+            local_offset = self.get_local_tz(True)
+            adjusted_end_date = self.end_date + timedelta(hours=local_offset)
+            self.e_date = fields.Date.to_string(adjusted_end_date.date())
+
+    @api.onchange("s_date", "start_minutes")
+    def onchange_s_date(self):
+        if self.s_date and self.start_minutes:
+            local_offset = self.get_local_tz(True)
+            time_obj = datetime.strptime(self.start_minutes, "%H:%M").time()
+            combined_datetime = datetime.combine(self.s_date, time_obj)
+            self.start_date = combined_datetime - timedelta(hours=local_offset)
+
+
+    @api.onchange("e_date", "end_minutes")
+    def onchange_e_date(self):
+        if self.e_date and self.end_minutes:
+            local_offset = self.get_local_tz(True)
+            time_obj = datetime.strptime(self.end_minutes, "%H:%M").time()
+            combined_datetime = datetime.combine(self.e_date, time_obj)
+            self.end_date = combined_datetime - timedelta(hours=local_offset)
 
     @api.onchange("duration")
     def onchange_duration(self):
