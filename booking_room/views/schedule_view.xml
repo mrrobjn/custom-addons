@@ -103,10 +103,10 @@
         <field name="arch" type="xml">
             <form string="New Meeting">
                 <xpath expr="//header" position="after">
-                    <!-- <div class="alert alert-warning" role="alert"
+                    <div class="alert alert-warning" role="alert"
                         style="height: 40px; margin-bottom:0px;"
                         attrs="{'invisible':[('is_same_date', '=', True)]}">
-                        The meeting must end within the same date. </div> -->
+                        The meeting must end within the same date. </div>
                     <div class="alert alert-warning" role="alert"
                         style="height: 40px; margin-bottom:0px;"
                         attrs="{'invisible':[('is_long_meeting', '=', True)]}">
@@ -140,7 +140,7 @@
                                 attrs="{'readonly': [('check_access_team_id', '=', False)]}" />
                             <field name="end_date" widget="date"
                                 attrs="{'readonly': [('check_access_team_id', '=', False)],'invisible': [('meeting_type', '!=', 'daily')]}" />
-                            <field name="weekday"></field>
+                            <field name="weekday" attrs="{'invisible':[('meeting_type', '=', 'daily')]}"></field>
                             <field name="repeat_weekly"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'weekly'),('is_edit', '=', True)]}"></field>
                         </group>
@@ -155,15 +155,15 @@
                                     html_attrs="{'size': '5'}" style="margin-left:5%"></field>
                             </div>
                             <field name="is_first_end_date" invisible="1"></field>
-                            <field name="duration_minutes"
-                                readonly="True"
-                            ></field>
                         </group>
                         <group>
                             <field name="duration" invisible="1"></field>
                             <field name="customize"
                                 widget="boolean_toggle"
                                 attrs="{'invisible': ['|',('meeting_type', '!=', 'daily'),('is_edit', '=', True)]}" />
+                            <field name="day" invisible="1" />
+                            <field name="month" invisible="1" />
+                            <field name="time" invisible="1" />
                             <field name="is_edit" invisible="1" />
                             <field name="is_first_event" invisible="1" />
                             <field name="is_first_tag" invisible="1" />
