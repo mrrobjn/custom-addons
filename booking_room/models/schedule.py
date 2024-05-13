@@ -307,7 +307,15 @@ class MeetingSchedule(models.Model):
         else:
             self.is_long_meeting = True
 
-    @api.onchange("start_date", "end_date", "meeting_type")
+    @api.onchange("meeting_type")
+    def ons(self):
+        if self.meeting_type != "daily" and self.s_date != self.e_date:
+            self.end_date = self.end_date.replace(day=self.start_date.day
+            ,month = self.start_date.month
+            ,year=self.start_date.year)
+            self.meeting_type = "normal"
+
+    @api.onchange("start_date", "end_date")
     def onchange_check_date(self):
         start_date = self.start_date.astimezone(self.get_local_tz()) 
         end_date = self.end_date.astimezone(self.get_local_tz()) 
@@ -319,22 +327,14 @@ class MeetingSchedule(models.Model):
 
         self.start_minutes= str(start_setup_hour).zfill(2)+":"+str(start_setup_minutes).zfill(2)
         self.end_minutes=str(end_setup_hour).zfill(2)+":"+str(end_setup_minutes).zfill(2)          
+     
 
-
-        if self.meeting_type != "daily" and self.duration != 0:
-            if start_date.date() != end_date.date():
+        if self.duration != 0:
+            if end_date.date() != start_date.date() and self.meeting_type != "daily" :
                 self.meeting_type = "daily"
                 self.is_same_date = False
-            else :
-                self.end_date = self.end_date.replace(day=self.start_date.day
-                ,month = self.start_date.month
-                ,year=self.start_date.year)
-        if self.meeting_type == "daily" and self.duration != 0:
-            if self.s_date == self.e_date:
-                self.end_date = self.end_date.replace(day=self.start_date.day
-                ,month = self.start_date.month
-                ,year=self.start_date.year)
-            self.is_same_date = True
+
+        self.is_same_date = True
     @api.onchange("start_date", "meeting_type")
     def onchange_start_time(self):
         local_tz = self.get_local_tz()
@@ -608,8 +608,7 @@ class MeetingSchedule(models.Model):
         return super(MeetingSchedule, self).unlink()
 
     @api.model
-    def delete_meeting(self, selected_value, dateStart):
-        id = dateStart
+    def delete_meeting(self, selected_value, id):
         find_meeting = self.search(
             [
                 ("id", "=", id),
