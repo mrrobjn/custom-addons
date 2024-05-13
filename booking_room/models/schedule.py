@@ -310,10 +310,11 @@ class MeetingSchedule(models.Model):
     @api.onchange("meeting_type")
     def ons(self):
         if self.meeting_type != "daily" and self.s_date != self.e_date:
+            print("____s2")
             self.end_date = self.end_date.replace(day=self.start_date.day
             ,month = self.start_date.month
             ,year=self.start_date.year)
-            self.meeting_type = "normal"
+            
 
     @api.onchange("start_date", "end_date")
     def onchange_check_date(self):
@@ -333,7 +334,6 @@ class MeetingSchedule(models.Model):
             if end_date.date() != start_date.date() and self.meeting_type != "daily" :
                 self.meeting_type = "daily"
                 self.is_same_date = False
-
         self.is_same_date = True
     @api.onchange("start_date", "meeting_type")
     def onchange_start_time(self):
