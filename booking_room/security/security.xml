@@ -50,11 +50,11 @@
             <field name="perm_read" eval="True" />
             <field name="perm_create" eval="True" />
         </record>
-<!-- 
+
         <record id="product.product_comp_rule" model="ir.rule">
             <field name="domain_force">['|',('company_id','in',[c.id for c in
                 user.company_ids]),('company_id','=',False)]</field>
-        </record> -->
+        </record>
         
     </data>
 
