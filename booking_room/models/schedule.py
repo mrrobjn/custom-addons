@@ -310,7 +310,6 @@ class MeetingSchedule(models.Model):
     @api.onchange("meeting_type")
     def ons(self):
         if self.meeting_type != "daily" and self.s_date != self.e_date:
-            print("____s2")
             self.end_date = self.end_date.replace(day=self.start_date.day
             ,month = self.start_date.month
             ,year=self.start_date.year)
