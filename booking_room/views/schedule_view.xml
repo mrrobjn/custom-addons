@@ -200,17 +200,15 @@
                     </group>
                     <notebook>
                         <page string="Customize"
-                            attrs="{'invisible': ['|', ('is_edit', '=', True), ('customize', '=', False)]}">
+                            attrs="{'invisible': ['|','|', ('is_edit', '=', True), ('customize', '=', False),('meeting_type', '!=', 'daily')]}">
                             <group>
-                                <group
-                                    attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}">
+                                <group>
                                     <field name="monday" />
                                     <field name="tuesday" />
                                     <field name="wednesday" />
                                     <field name="thursday" />
                                 </group>
-                                <group
-                                    attrs="{'invisible': ['|',('meeting_type', '=', 'normal'),('meeting_type','=','weekly')]}">
+                                <group>
                                     <field name="friday" />
                                     <field name="saturday" />
                                     <field name="sunday" />
