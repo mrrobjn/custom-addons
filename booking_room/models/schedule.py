@@ -495,53 +495,48 @@ class MeetingSchedule(models.Model):
     
 
     def send_email_to_attendees(self):
-        mail_template = "booking_room.invite_meeting_mail_template"
-        subject_template = "[Metting] Invite Meeting Attendance"
-        self._send_message_auto_subscribe_notify(
-            self.partner_ids, mail_template, subject_template
-        )
+            mail_template = "booking_room.invite_meeting_mail_template"
+            subject_template = "[Meeting] Invite Meeting Attendance"
+            self._send_message_auto_subscribe_notify(
+                self.partner_ids, mail_template, subject_template
+            )
 
     @api.model
-    def _send_message_auto_subscribe_notify(
-        self, users_per_task, mail_template, subject_template
-    ):
-        template_id = self.env["ir.model.data"]._xmlid_to_res_id(
-            mail_template, raise_if_not_found=False
-        )
+    def _send_message_auto_subscribe_notify(self, employees, mail_template, subject_template):
+        template_id = self.env["ir.model.data"]._xmlid_to_res_id(mail_template, raise_if_not_found=False)
         if not template_id:
             return
         view = self.env["ir.ui.view"].browse(template_id)
-        date_obj = fields.Datetime.to_string(
-            fields.Datetime.context_timestamp(
-                self, fields.Datetime.from_string(self.start_date)
-            )
-        )
-        for users in users_per_task:
-            if not users:
-                continue
-            values = {
-                "object": self,
-                "date_obj": date_obj,
-                "model_description": "Invite meeting",
-                "access_link": self._notify_get_action_link("view"),
-            }
 
-            for user in users:
-                values["dear"] = user.name
-                assignation_msg = view._render(
-                    values, engine="ir.qweb", minimal_qcontext=True
-                )
-                assignation_msg = self.env["mail.render.mixin"]._replace_local_links(
-                    assignation_msg
-                )
-                self.message_notify(
-                    subject=subject_template,
-                    body=assignation_msg,
-                    partner_ids=[user.id],
-                    record_name=self.display_name,
-                    email_layout_xmlid="mail.mail_notification_light",
-                    model_description="Invite meeting",
-                )
+        email_addresses = employees.mapped('work_email')
+        email_addresses = list(filter(None, email_addresses))  # Remove any empty email addresses
+
+        if not email_addresses:
+            return
+
+        date_obj = fields.Datetime.to_string(
+            fields.Datetime.context_timestamp(self, fields.Datetime.from_string(self.start_date))
+        )
+
+        values = {
+            "object": self,
+            "date_obj": date_obj,
+            "model_description": "Invite meeting",
+            "access_link": self._notify_get_action_link("view"),
+        }
+
+        assignation_msg = view._render(values, engine="ir.qweb", minimal_qcontext=True)
+        assignation_msg = self.env["mail.render.mixin"]._replace_local_links(assignation_msg)
+
+        mail_values = {
+            'subject': subject_template,
+            'body_html': assignation_msg,
+            'email_to': ','.join(email_addresses),
+            'email_from': self.env.user.email or '',
+        }
+
+        mail = self.env['mail.mail'].create(mail_values)
+        mail.send()
 
     def get_local_tz(self, offset=False):
         user_tz = self.env.user.tz or "UTC"
