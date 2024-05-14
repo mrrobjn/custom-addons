@@ -54,22 +54,24 @@ class MeetingSchedule(models.Model):
             ("weekly", "Weekly Meeting"),
         ],
     )
-    start_date = fields.Datetime(string="Start Date Time")
-    end_date = fields.Datetime(string="End Date Time")
-    s_date = fields.Date(string="Start Date")
-    e_date = fields.Date(string="End Date")
+    start_date = fields.Datetime(string="Start Date Time", required=True)
+    end_date = fields.Datetime(string="End Date Time", required=True)
+    s_date = fields.Date(string="Start Date", required=True)
+    e_date = fields.Date(string="End Date", required=True)
 
     start_minutes = fields.Selection(
         generate_start_minutes_selection(),
         string="Start",
         compute = '_compute_default_start_minutes',
-        store=False
+        store=False,
+        required=True
     )
     end_minutes = fields.Selection(
         generate_start_minutes_selection(),
         string="End",
         compute = '_compute_default_end_minutes',
         store=False,
+        required=True
     )
     duration = fields.Float(
         string="Duration(hour)",
@@ -89,9 +91,9 @@ class MeetingSchedule(models.Model):
         required=True,
         default=lambda self: self.env.user,
     )
-    day = fields.Char("Day", compute="_compute_date_start")
-    month = fields.Char("Month and Year", compute="_compute_date_start")
-    time = fields.Char("Time", compute="_compute_date_start")
+    day = fields.Char("Day", compute="_compute_kanban_date_start", store=True,)
+    month = fields.Char("Month and Year", compute="_compute_kanban_date_start", store=True,)
+    time = fields.Char("Time", compute="_compute_kanban_date_start", store=True,)
 
     repeat_weekly = fields.Integer(string="Repeat Weekly", default=1)
     weekday = fields.Char(string="Day of week")
@@ -108,8 +110,7 @@ class MeetingSchedule(models.Model):
     is_first_tag = fields.Boolean(default=True)
     check_access_team_id = fields.Boolean("Check Access", compute="_check_user_id")
 
-    attachment_ids = fields.One2many('ir.attachment','res_id', string="Attachments" 
-    ) 
+    attachment_ids = fields.One2many('ir.attachment','res_id', string="Attachments") 
     file_attachment_ids = fields.Many2many(
         'ir.attachment', string="Attach File", 
         inverse='_inverse_file_attachment_ids'
@@ -123,9 +124,7 @@ class MeetingSchedule(models.Model):
     is_partner = fields.Boolean(default=True, compute="_check_user_id")
     for_attachment = fields.Boolean(default=True, compute="_check_user_id")
     customize = fields.Boolean(string="Customize", default=False)
-    is_same_date = fields.Boolean(default=True)
     is_long_meeting = fields.Boolean(default=True)
-
 
     def _compute_default_start_minutes(self):
         time_start_date =  self.start_date.astimezone(self.get_local_tz()) 
@@ -165,10 +164,11 @@ class MeetingSchedule(models.Model):
     @api.depends("room_id", "user_id")
     def _compute_meeting_name(self):
         for record in self:
-            record.name = f"{record.room_id.name} - {record.user_id.name}"
+            if record.room_id and record.user_id:
+                record.name = f"{record.room_id.name} - {record.user_id.name}"
 
     @api.depends("start_date")
-    def _compute_date_start(self):
+    def _compute_kanban_date_start(self):
         for record in self:
             if record.start_date:
                 date_obj = record.start_date.astimezone(self.get_local_tz())
@@ -250,18 +250,23 @@ class MeetingSchedule(models.Model):
                     )
 
     @api.onchange("start_date", "end_date")
-    def _onchange_compute_duration(self):
+    def _onchange_start_end_date(self):
         if self.start_date and self.end_date:
+            start_date = self.start_date.astimezone(self.get_local_tz()) 
+            end_date = self.end_date.astimezone(self.get_local_tz()) 
             
-            start_time = self.start_date.astimezone(self.get_local_tz()).time()
-            end_time = self.end_date.astimezone(self.get_local_tz()).time()
-
-            start_seconds = start_time.hour * 3600 + start_time.minute * 60 + start_time.second
-            end_seconds = end_time.hour * 3600 + end_time.minute * 60 + end_time.second
+            start_seconds = start_date.hour * 3600 + start_date.minute * 60 + start_date.second
+            end_seconds = end_date.hour * 3600 + end_date.minute * 60 + end_date.second
                 
             duration_seconds = end_seconds - start_seconds
             duration_hours = duration_seconds / 3600
             self.duration = duration_hours
+
+            self.start_minutes = str(start_date.hour).zfill(2) + ":" + str(start_date.minute).zfill(2)
+            self.end_minutes = str(end_date.hour).zfill(2) + ":" + str(end_date.minute).zfill(2)          
+        
+            if self.duration != 0 and end_date.date() != start_date.date() and self.meeting_type != "daily" :
+                self.meeting_type = "daily"
 
     @api.onchange("start_date")
     def _onchange_start_date(self):
@@ -309,63 +314,44 @@ class MeetingSchedule(models.Model):
             ,month = self.start_date.month
             ,year=self.start_date.year)
 
-    @api.onchange("start_date", "end_date")
-    def onchange_check_date(self):
-        start_date = self.start_date.astimezone(self.get_local_tz()) 
-        end_date = self.end_date.astimezone(self.get_local_tz()) 
-        start_setup_hour = start_date.hour
-        start_setup_minutes = start_date.minute
-
-        end_setup_hour = end_date.hour
-        end_setup_minutes = end_date.minute
-
-        self.start_minutes = str(start_setup_hour).zfill(2) + ":" + str(start_setup_minutes).zfill(2)
-        self.end_minutes = str(end_setup_hour).zfill(2) + ":" + str(end_setup_minutes).zfill(2)          
-     
-        if self.duration != 0:
-            if end_date.date() != start_date.date() and self.meeting_type != "daily" :
-                self.meeting_type = "daily"
-                self.is_same_date = False
-        self.is_same_date = True
-
     @api.onchange("start_date", "meeting_type")
     def onchange_start_time(self):
         local_tz = self.get_local_tz()
-
-        if self.meeting_type == "daily":
-            self.monday = True
-            self.tuesday = True
-            self.thursday = True
-            self.wednesday = True
-            self.friday = True
-            self.saturday = False
-            self.sunday = False
-        if self.meeting_type == "weekly":
-            self.monday = False
-            self.tuesday = False
-            self.thursday = False
-            self.wednesday = False
-            self.friday = False
-            self.saturday = False
-            self.sunday = False
-
-            local_start = self.start_date.astimezone(local_tz)
-            day_of_week = local_start.weekday()
-
-            if day_of_week == 0:
+        if self.start_date and self.meeting_type:
+            if self.meeting_type == "daily":
                 self.monday = True
-            elif day_of_week == 1:
                 self.tuesday = True
-            elif day_of_week == 2:
-                self.wednesday = True
-            elif day_of_week == 3:
                 self.thursday = True
-            elif day_of_week == 4:
+                self.wednesday = True
                 self.friday = True
-            elif day_of_week == 5:
-                self.saturday = True
-            elif day_of_week == 6:
-                self.sunday = True
+                self.saturday = False
+                self.sunday = False
+            if self.meeting_type == "weekly":
+                self.monday = False
+                self.tuesday = False
+                self.thursday = False
+                self.wednesday = False
+                self.friday = False
+                self.saturday = False
+                self.sunday = False
+
+                local_start = self.start_date.astimezone(local_tz)
+                day_of_week = local_start.weekday()
+
+                if day_of_week == 0:
+                    self.monday = True
+                elif day_of_week == 1:
+                    self.tuesday = True
+                elif day_of_week == 2:
+                    self.wednesday = True
+                elif day_of_week == 3:
+                    self.thursday = True
+                elif day_of_week == 4:
+                    self.friday = True
+                elif day_of_week == 5:
+                    self.saturday = True
+                elif day_of_week == 6:
+                    self.sunday = True
 
     # Business Logic Methods
     def create_daily(self):
