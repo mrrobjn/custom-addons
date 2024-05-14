@@ -13,17 +13,130 @@ odoo.define("booking_room.schedule_view_calendar", function (require) {
   var CalendarView = require("web.CalendarView");
   var viewRegistry = require("web.view_registry");
   var session = require("web.session");
+  function dateToServer(date) {
+    return date.clone().utc().locale('en').format('YYYY-MM-DD HH:mm:ss');
+  }
+  function default_start_minutes() {
+    let current_time = new Date();
+    let current_hour = current_time.getUTCHours();
+    let current_minute = Math.ceil((current_time.getMinutes() / 15)+1) * 15;
 
+
+    return { current_hour, current_minute };
+  }
+  function default_end_minutes() {
+    let current_time = new Date();
+    let current_hour = current_time.getUTCHours();
+    let current_minute = Math.ceil((current_time.getMinutes() / 15) +1)* 15 + 30;
+
+    return { current_hour, current_minute };
+  }
   var _t = core._t;
   var BookingCalendarController = CalendarController.extend({
     /**
      * @override
      */
+    _onOpenCreate: function(event) {
+      var self = this;
+      const mode = this.mode;
+      if (["year", "month"].includes(this.model.get().scale)) {
+          event.data.allDay = true;
+      }
+      var data = this.model.calendarEventToRecord(event.data);
+      var context = _.extend({}, this.context, event.options && event.options.context);
+      if (data.name) {
+          context.default_name = data.name;
+      }
+      if(mode==='month' ||mode === 'year'){
+        let current_time = new Date();
+
+        let startTime = default_start_minutes();
+        var newStartDate = moment(data[this.mapping.date_start]).hour(startTime.current_hour).minute(startTime.current_minute);
+        if (current_time.getDay >7){
+          newStartDate = newStartDate.subtract(1, 'day');
+        }
+        var formattedStartDate = newStartDate.format('YYYY-MM-DD HH:mm:ss');
+        context['default_' + this.mapping.date_start] = formattedStartDate || null;
+
+        let endTime = default_end_minutes();
+        var newEndDate = moment(data[this.mapping.date_stop]).hour(endTime.current_hour).minute(endTime.current_minute);
+        if (current_time.getDay >7){
+          newEndDate = newEndDate.subtract(1, 'day');
+        }
+        var formattedDateStop = newEndDate.format('YYYY-MM-DD HH:mm:ss');
+        context['default_' + this.mapping.date_stop] = formattedDateStop;
+
+      }else{
+      context['default_' + this.mapping.date_start] = data[this.mapping.date_start] || null;
+      if (this.mapping.date_stop) {
+          context['default_' + this.mapping.date_stop] = data[this.mapping.date_stop] || null;
+      }
+    }
+      if (this.mapping.date_delay) {
+          context['default_' + this.mapping.date_delay] = data[this.mapping.date_delay] || null;
+      }
+      if (this.mapping.all_day) {
+          context['default_' + this.mapping.all_day] = data[this.mapping.all_day] || null;
+      }
+      for (var k in context) {
+          if (context[k] && context[k]._isAMomentObject) {
+              context[k] = dateToServer(context[k]);
+          }
+      }
+      var options = _.extend({}, this.options, event.options, {
+          context: context,
+          title: this._setEventTitle()
+      });
+      if (this.quick != null) {
+          this.quick.destroy();
+          this.quick = null;
+      }
+      if (!options.disableQuickCreate && !event.data.disableQuickCreate && this.quickAddPop) {
+          this.quick = new QuickCreate(this,true,options,data,event.data);
+          this.quick.open();
+          this.quick.opened(function() {
+              self.quick.focus();
+          });
+          return;
+      }
+      if (this.eventOpenPopup) {
+          if (this.previousOpen) {
+              this.previousOpen.close();
+          }
+          this.previousOpen = new dialogs.FormViewDialog(self,{
+              res_model: this.modelName,
+              context: context,
+              title: options.title,
+              view_id: this.formViewId || false,
+              disable_multiple_selection: true,
+              on_saved: function() {
+                  if (event.data.on_save) {
+                      event.data.on_save();
+                  }
+                  self.reload();
+              },
+          });
+          this.previousOpen.on('closed', this, ()=>{
+              if (event.data.on_close) {
+                  event.data.on_close();
+              }
+          }
+          )
+          this.previousOpen.open();
+      } else {
+          this.do_action({
+              type: 'ir.actions.act_window',
+              res_model: this.modelName,
+              views: [[this.formViewId || false, 'form']],
+              target: 'current',
+              context: context,
+          });
+      }
+  },
     _onOpenEvent: function (event) {
       var self = this;
       var id = event.data._id;
       id = id && parseInt(id).toString() === id ? parseInt(id) : id;
-
       if (!this.eventOpenPopup) {
         this._rpc({
           model: self.modelName,
