@@ -176,12 +176,10 @@
                     </group>
                     <!-- attachment -->
                     <group
-                        attrs="{'invisible': [('for_attachment', '=', False)]}">
+                        attrs="{'invisible': [('for_attachment', '=', False), ('is_edit', '=', True)]}">
                         <field name="for_attachment" invisible="1" />
-                        <label for="file_attachment_ids" string="Attachments"
-                        />
-                        <field name="file_attachment_ids" widget="many2many_binary" nolabel="1"
-                        />
+                        <label for="file_attachment_ids" string="Attachments"/>
+                        <field name="file_attachment_ids" widget="many2many_binary" nolabel="1"/>
                     </group>
                     <!-- attachment -->
                     <group>

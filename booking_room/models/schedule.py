@@ -121,8 +121,8 @@ class MeetingSchedule(models.Model):
         inverse_name='child_ids',
         string="Attendees",
     )
-    is_partner = fields.Boolean(default=True, compute="_check_user_id")
-    for_attachment = fields.Boolean(default=True, compute="_check_user_id")
+    is_partner = fields.Boolean(default=True, compute="_check_for_attachment")
+    for_attachment = fields.Boolean(default=True, compute="_check_for_attachment")
     customize = fields.Boolean(string="Customize", default=False)
     is_long_meeting = fields.Boolean(default=True)
 
@@ -150,14 +150,25 @@ class MeetingSchedule(models.Model):
         self.attachment_ids = self.file_attachment_ids
         return
 
+    @api.constrains('file_attachment_ids')
+    def _check_file_attachment_ids(self):
+        for record in self:
+            if len(record.file_attachment_ids) > 1:
+                raise ValidationError("You can only attach one file.")
+
     @api.depends("user_id")
     def _check_user_id(self):
         for rec in self:
-            rec.is_partner = bool(rec._check_is_hr() or self.env.user.partner_id.id in rec.partner_ids.ids)
             rec.check_access_team_id = bool(rec._check_is_hr() or rec.user_id.id == self.env.uid)
-            rec.for_attachment = bool(
+
+    @api.depends("partner_ids")
+    def _check_for_attachment(self):
+        for rec in self:
+            # if rec.partner_ids and rec.is_edit == True:
+            rec.is_partner = bool(rec._check_is_hr() or self.partner_ids.id in rec.partner_ids.ids)
+            rec.for_attachment = bool(  
                 rec._check_is_hr()
-                or self.env.user.partner_id.id in rec.partner_ids.ids
+                or self.partner_ids.id in rec.partner_ids.ids
                 or self.env.uid == rec.create_uid.id
             )
 
