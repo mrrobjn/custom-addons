@@ -176,7 +176,6 @@
                             <field name="month" invisible="1" />
                             <field name="time" invisible="1" />
                             <field name="is_edit" invisible="1" />
-                            <field name="is_first_event" invisible="1" />
                             <field name="is_first_tag" invisible="1" />
                         </group>
                     </group>

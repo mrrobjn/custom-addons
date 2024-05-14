@@ -4,7 +4,7 @@
 
         <template id="invite_meeting_mail_template">
             <p style="margin: 0px;">
-                <p>Dear <t t-esc="dear"/>,</p>
+                <p>Dear Sir/Madam<t t-esc="dear"/>,</p>
                 <p style="margin-top: 8px;">You are invited to a meeting. Please attend at <t t-esc="date_obj"/>, room <t t-esc="object.room_id.id"/>.</p>
             </p>
             <p>Thank you!</p>
