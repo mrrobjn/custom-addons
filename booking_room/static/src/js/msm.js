@@ -14,20 +14,20 @@ odoo.define("booking_room.schedule_view_calendar", function (require) {
   var viewRegistry = require("web.view_registry");
   var session = require("web.session");
   function dateToServer(date) {
-    return date.clone().utc().locale('en').format('YYYY-MM-DD HH:mm:ss');
+    return date.clone().utc().locale("en").format("YYYY-MM-DD HH:mm:ss");
   }
   function default_start_minutes() {
     let current_time = new Date();
     let current_hour = current_time.getUTCHours();
-    let current_minute = Math.ceil((current_time.getMinutes() / 15)+1) * 15;
-
+    let current_minute = Math.ceil(current_time.getMinutes() / 15 + 1) * 15;
 
     return { current_hour, current_minute };
   }
   function default_end_minutes() {
     let current_time = new Date();
     let current_hour = current_time.getUTCHours();
-    let current_minute = Math.ceil((current_time.getMinutes() / 15) +1)* 15 + 30;
+    let current_minute =
+      Math.ceil(current_time.getMinutes() / 15 + 1) * 15 + 30;
 
     return { current_hour, current_minute };
   }
@@ -36,103 +36,118 @@ odoo.define("booking_room.schedule_view_calendar", function (require) {
     /**
      * @override
      */
-    _onOpenCreate: function(event) {
+    _onOpenCreate: function (event) {
       var self = this;
       const mode = this.mode;
       if (["year", "month"].includes(this.model.get().scale)) {
-          event.data.allDay = true;
+        event.data.allDay = true;
       }
       var data = this.model.calendarEventToRecord(event.data);
-      var context = _.extend({}, this.context, event.options && event.options.context);
+      var context = _.extend(
+        {},
+        this.context,
+        event.options && event.options.context
+      );
       if (data.name) {
-          context.default_name = data.name;
+        context.default_name = data.name;
       }
-      if(mode==='month' ||mode === 'year'){
+      if (mode === "month" || mode === "year") {
         let current_time = new Date();
 
         let startTime = default_start_minutes();
-        var newStartDate = moment(data[this.mapping.date_start]).hour(startTime.current_hour).minute(startTime.current_minute);
-        if (current_time.getDay >7){
-          newStartDate = newStartDate.subtract(1, 'day');
+        var newStartDate = moment(data[this.mapping.date_start])
+          .hour(startTime.current_hour)
+          .minute(startTime.current_minute);
+        if (current_time.getDay > 7) {
+          newStartDate = newStartDate.subtract(1, "day");
         }
-        var formattedStartDate = newStartDate.format('YYYY-MM-DD HH:mm:ss');
-        context['default_' + this.mapping.date_start] = formattedStartDate || null;
+        var formattedStartDate = newStartDate.format("YYYY-MM-DD HH:mm:ss");
+        context["default_" + this.mapping.date_start] =
+          formattedStartDate || null;
 
         let endTime = default_end_minutes();
-        var newEndDate = moment(data[this.mapping.date_stop]).hour(endTime.current_hour).minute(endTime.current_minute);
-        if (current_time.getDay >7){
-          newEndDate = newEndDate.subtract(1, 'day');
+        var newEndDate = moment(data[this.mapping.date_stop])
+          .hour(endTime.current_hour)
+          .minute(endTime.current_minute);
+        if (current_time.getDay > 7) {
+          newEndDate = newEndDate.subtract(1, "day");
         }
-        var formattedDateStop = newEndDate.format('YYYY-MM-DD HH:mm:ss');
-        context['default_' + this.mapping.date_stop] = formattedDateStop;
-
-      }else{
-      context['default_' + this.mapping.date_start] = data[this.mapping.date_start] || null;
-      if (this.mapping.date_stop) {
-          context['default_' + this.mapping.date_stop] = data[this.mapping.date_stop] || null;
+        var formattedDateStop = newEndDate.format("YYYY-MM-DD HH:mm:ss");
+        context["default_" + this.mapping.date_stop] = formattedDateStop;
+      } else {
+        context["default_" + this.mapping.date_start] =
+          data[this.mapping.date_start] || null;
+        if (this.mapping.date_stop) {
+          context["default_" + this.mapping.date_stop] =
+            data[this.mapping.date_stop] || null;
+        }
       }
-    }
       if (this.mapping.date_delay) {
-          context['default_' + this.mapping.date_delay] = data[this.mapping.date_delay] || null;
+        context["default_" + this.mapping.date_delay] =
+          data[this.mapping.date_delay] || null;
       }
       if (this.mapping.all_day) {
-          context['default_' + this.mapping.all_day] = data[this.mapping.all_day] || null;
+        context["default_" + this.mapping.all_day] =
+          data[this.mapping.all_day] || null;
       }
       for (var k in context) {
-          if (context[k] && context[k]._isAMomentObject) {
-              context[k] = dateToServer(context[k]);
-          }
+        if (context[k] && context[k]._isAMomentObject) {
+          context[k] = dateToServer(context[k]);
+        }
       }
       var options = _.extend({}, this.options, event.options, {
-          context: context,
-          title: this._setEventTitle()
+        context: context,
+        title: this._setEventTitle(),
       });
       if (this.quick != null) {
-          this.quick.destroy();
-          this.quick = null;
+        this.quick.destroy();
+        this.quick = null;
       }
-      if (!options.disableQuickCreate && !event.data.disableQuickCreate && this.quickAddPop) {
-          this.quick = new QuickCreate(this,true,options,data,event.data);
-          this.quick.open();
-          this.quick.opened(function() {
-              self.quick.focus();
-          });
-          return;
+      if (
+        !options.disableQuickCreate &&
+        !event.data.disableQuickCreate &&
+        this.quickAddPop
+      ) {
+        this.quick = new QuickCreate(this, true, options, data, event.data);
+        this.quick.open();
+        this.quick.opened(function () {
+          self.quick.focus();
+        });
+        return;
       }
       if (this.eventOpenPopup) {
-          if (this.previousOpen) {
-              this.previousOpen.close();
+        if (this.previousOpen) {
+          this.previousOpen.close();
+        }
+        this.previousOpen = new dialogs.FormViewDialog(self, {
+          res_model: this.modelName,
+          context: context,
+          title: options.title,
+          view_id: this.formViewId || false,
+          disable_multiple_selection: true,
+          on_saved: function () {
+            if (event.data.on_save) {
+              event.data.on_save();
+            }
+            self.reload();
+          },
+        });
+        this.previousOpen.on("closed", this, () => {
+          if (event.data.on_close) {
+            event.data.on_close();
           }
-          this.previousOpen = new dialogs.FormViewDialog(self,{
-              res_model: this.modelName,
-              context: context,
-              title: options.title,
-              view_id: this.formViewId || false,
-              disable_multiple_selection: true,
-              on_saved: function() {
-                  if (event.data.on_save) {
-                      event.data.on_save();
-                  }
-                  self.reload();
-              },
-          });
-          this.previousOpen.on('closed', this, ()=>{
-              if (event.data.on_close) {
-                  event.data.on_close();
-              }
-          }
-          )
-          this.previousOpen.open();
+        });
+        this.previousOpen.open();
       } else {
-          this.do_action({
-              type: 'ir.actions.act_window',
-              res_model: this.modelName,
-              views: [[this.formViewId || false, 'form']],
-              target: 'current',
-              context: context,
-          });
+        this.do_action({
+          type: "ir.actions.act_window",
+          res_model: this.modelName,
+          views: [[this.formViewId || false, "form"]],
+          target: "current",
+          context: context,
+        });
       }
-  },
+    },
     _onOpenEvent: function (event) {
       var self = this;
       var id = event.data._id;
@@ -181,19 +196,17 @@ odoo.define("booking_room.schedule_view_calendar", function (require) {
     },
     _onDeleteRecord: function (ev) {
       var self = this;
-      var recordID = $(ev.currentTarget).data("id");
 
-      var dateStart = ev.data.event.record.id;
+      var id = ev.data.event.record.id;
 
-      // var dateStart = $('.o_field_widget[name="start_date"]').get().value;
       var dialog = new Dialog(this, {
         title: _t("Delete Confirmation"),
         size: "medium",
         $content: $(QWeb.render("booking_room.RecurrentEventUpdate", {})),
         buttons: [
           {
-            text: _t("Delete"),
-            classes: "btn-danger",
+            text: _t("OK"),
+            classes: "btn btn-primary",
             close: true,
             click: function () {
               var selectedValue = $(
@@ -204,7 +217,7 @@ odoo.define("booking_room.schedule_view_calendar", function (require) {
                 .query({
                   model: "meeting.schedule",
                   method: "delete_meeting",
-                  args: [selectedValue, dateStart],
+                  args: [selectedValue, id],
                 })
                 .then(function (result) {
                   self.reload();
@@ -233,7 +246,6 @@ odoo.define("booking_room.schedule_view_calendar", function (require) {
     _renderEventPopover: function (eventData, $eventElement) {
       var self = this;
 
-      // Initialize popover widget
       let calendarPopover = new self.config.CalendarPopover(
         self,
         self._getPopoverContext(eventData)
