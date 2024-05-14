@@ -1,13 +1,9 @@
-from odoo import models, fields, api, tools, _
+from odoo import models, fields, api
 from odoo.exceptions import ValidationError, UserError
 from datetime import timedelta, datetime
 from pytz import timezone
-import base64
-from collections import defaultdict
 from datetime import timedelta, datetime
 import pytz
-import os
-from tempfile import NamedTemporaryFile
 
 
 def generate_start_minutes_selection():
@@ -147,16 +143,13 @@ class MeetingSchedule(models.Model):
     is_first_tag = fields.Boolean(default=True)
     check_access_team_id = fields.Boolean("Check Access", compute="_check_user_id")
 
-    attachment = fields.Binary(
-        compute="_compute_content",
-        inverse="_inverse_content",
-        attachment=False,
-        prefetch=False,
-        store=False,
-    )
-    content_file = fields.Binary(attachment=True, prefetch=False, invisible=True)
-    filename = fields.Char("Attachment Name")
-
+    attachment_ids = fields.One2many('ir.attachment','res_id', string="Attachments" 
+    ) 
+    file_attachment_ids = fields.Many2many(
+        'ir.attachment', string="Attach File", 
+        inverse='_inverse_file_attachment_ids'
+        )
+    
     partner_ids = fields.Many2many(
         "res.partner",
         string="Attendees",
@@ -167,26 +160,11 @@ class MeetingSchedule(models.Model):
     is_same_date = fields.Boolean(default=True)
     is_long_meeting = fields.Boolean(default=True)
     is_first_event = fields.Boolean(default=True)
+    is_first_end_date = fields.Datetime()
 
-    # upload + download document
-    def _inverse_content(self):
-        updates = defaultdict(set)
-
-        for record in self:
-            values = self._get_content_inital_vals()
-            values = record._update_content_vals(values)
-            updates[tools.frozendict(values)].add(record.id)
-        with self.env.norecompute():
-            for vals, ids in updates.items():
-                self.browse(ids).write(dict(vals))
-
-    # Depend Fields
-    @api.depends("content_file")
-    def _compute_content(self):
-        for record in self:
-            if record.content_file:
-                context = {"base64": True}
-                record.attachment = record.with_context(**context).content_file
+    def _inverse_file_attachment_ids(self):
+        self.attachment_ids = self.file_attachment_ids
+        return
 
     @api.depends("user_id")
     def _check_user_id(self):
@@ -282,28 +260,24 @@ class MeetingSchedule(models.Model):
                 new_end_date = end_date.replace(hour=int(end["hour"])-7, minute=int(end["minutes"]))
                 self.end_date = fields.Datetime.to_string(new_end_date)
 
-    @api.constrains("attachment")
+    @api.constrains("file_attachment_ids")
     def _validate_attachment(self):
         allowed_extensions = ["txt","doc","docx","xlsx","csv","ppt","pptx","pdf","png","jpg","jpeg"]
 
         for record in self:
-            if record.attachment:
-                if  "." not in record.filename \
-                    or record.filename.rsplit(".", 1)[1].lower() \
-                    not in allowed_extensions:
-
+            
+            if record.file_attachment_ids:
+                if (
+                    "." not in record.file_attachment_ids.name
+                    or record.file_attachment_ids.name.rsplit(".", 1)[1].lower()
+                    not in allowed_extensions
+                ):
                     raise ValidationError("Invalid attachment file type")
-
-                max_file_size = 20 * 1000 * 1000
-
-                with NamedTemporaryFile(delete=False) as temp_file:
-                    temp_file.write(base64.b64decode(record.attachment))
-                file_size = os.path.getsize(temp_file.name)
-                size_in_mb = round(file_size / 1000 / 1000, 2)
-                os.unlink(temp_file.name)
-                if file_size > max_file_size:
+                max_file_size = 10 * 1000 * 1000
+                if record.file_attachment_ids.file_size > max_file_size:
+                    size_in_mb =record.file_attachment_ids.file_size /1000 /1000
                     raise ValidationError(
-                        f"Attachment file size is {size_in_mb} MB "
+                        f"Attachment file size is {round(size_in_mb,2)} MB "
                         f"which exceeds the maximum file size allowed of {max_file_size / 1000 / 1000} MB"
                     )
 
@@ -501,6 +475,7 @@ class MeetingSchedule(models.Model):
                         datetime.combine(meeting_date.date(), end_datetime.time())
                     ),
                     "duration": self.duration,
+                    "file_attachment_ids": self.file_attachment_ids,
                     "room_id": self.room_id.id,
                     "company_id": self.company_id.id,
                     "user_id": self.user_id.id,
@@ -510,6 +485,7 @@ class MeetingSchedule(models.Model):
                 })
 
         self.create(meeting_to_create)
+
 
     def create_weekly(self):
         schedules_to_create = []
@@ -534,6 +510,7 @@ class MeetingSchedule(models.Model):
                             "room_id": schedule.room_id.id,
                             "company_id": schedule.company_id.id,
                             "duration": self.duration,
+                            "file_attachment_ids": schedule.file_attachment_ids,
                             "user_id": schedule.user_id.id,
                             "repeat_weekly": 0,
                             "is_edit": True,
@@ -575,14 +552,7 @@ class MeetingSchedule(models.Model):
         if not allowed and self.meeting_type == "daily" and self.is_first_tag == True:
             raise ValidationError(f"Start date cannot be scheduled on {weekday_name}.")
 
-    def _get_content_inital_vals(self):
-        return {"content_file": False}
-
-    def _update_content_vals(self, vals):
-        new_vals = vals.copy()
-        new_vals["content_file"] = self.attachment
-
-        return new_vals
+    
 
     def send_email_to_attendees(self):
         mail_template = "booking_room.invite_meeting_mail_template"
@@ -704,7 +674,7 @@ class MeetingSchedule(models.Model):
                 ("id", "=", id),
             ]
         )
-        print(id, "***")
+
         if self._check_is_hr() == True:
             if selected_value == "self_only":
                 find_meeting.unlink()
