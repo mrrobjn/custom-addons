@@ -1,14 +1,17 @@
 from odoo import models, fields, api
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 from datetime import timedelta, datetime
 from pytz import timezone
 from datetime import timedelta, datetime
+import pytz
+
 
 def generate_start_minutes_selection():
     start_minutes_selection = []
-    start_hour = 0
+    start_hour = 7
+    start_minute = 0
     end_hour = 23
-    end_minute = 30
+    end_minute = 45
     interval_minutes = 15
 
     for hour in range(start_hour, end_hour + 1):
@@ -24,15 +27,48 @@ def generate_start_minutes_selection():
             start_minutes_selection.append(
                 (f"{formatted_hour}:{formatted_minute}", time_label)
             )
+
     return start_minutes_selection
 
 
 def split_time(time_str):
-    hour, minute = time_str.split(":")
+    time_parts = time_str.split(" ")
+    time = time_parts[0]
+
+    hour, minute = time.split(":")
+
     return {
         "hour": hour,
         "minutes": minute,
     }
+
+
+def default_start_minutes(self):
+    current_time = datetime.now().time()
+    current_hour = current_time.hour + 7
+    current_minute = ((current_time.minute // 15) + 1) * 15
+    if current_hour == 23 and current_minute == 45:
+        raise UserError("System is close")
+    if current_minute >= 60:
+        current_hour = current_hour + 1
+        current_minute = current_minute - 60
+    formatted_hour = f"{current_hour:02d}"
+    formatted_minute = f"{current_minute:02d}"
+    return f"{formatted_hour}:{formatted_minute}"
+
+
+def default_end_minutes(self):
+    current_time = datetime.now().time()
+    current_hour = current_time.hour + 7
+    current_minute = ((current_time.minute // 15) + 3) * 15
+    if current_minute >= 60:
+        current_hour = current_hour + 1
+        current_minute = current_minute - 60
+
+    formatted_hour = f"{current_hour:02d}"
+    formatted_minute = f"{current_minute:02d}"
+    return f"{formatted_hour}:{formatted_minute}"
+
 
 class MeetingSchedule(models.Model):
     _name = "meeting.schedule"
@@ -54,24 +90,21 @@ class MeetingSchedule(models.Model):
             ("weekly", "Weekly Meeting"),
         ],
     )
-    start_date = fields.Datetime(string="Start Date Time", required=True)
-    end_date = fields.Datetime(string="End Date Time", required=True)
-    s_date = fields.Date(string="Start Date", required=True)
-    e_date = fields.Date(string="End Date", required=True)
-
+    start_date = fields.Datetime(string="Start Date Time")
+    end_date = fields.Datetime(string="End Date Time")
+    s_date = fields.Date(string="Start Date")
+    e_date = fields.Date(string="End Date")
     start_minutes = fields.Selection(
         generate_start_minutes_selection(),
         string="Start",
-        compute = '_compute_default_start_minutes',
-        store=False,
-        required=True
+        required=True,
+        default=default_start_minutes,
     )
     end_minutes = fields.Selection(
         generate_start_minutes_selection(),
         string="End",
-        compute = '_compute_default_end_minutes',
-        store=False,
-        required=True
+        required=True,
+        default=default_end_minutes,
     )
     duration = fields.Float(
         string="Duration(hour)",
@@ -91,9 +124,9 @@ class MeetingSchedule(models.Model):
         required=True,
         default=lambda self: self.env.user,
     )
-    day = fields.Char("Day", compute="_compute_kanban_date_start", store=True,)
-    month = fields.Char("Month and Year", compute="_compute_kanban_date_start", store=True,)
-    time = fields.Char("Time", compute="_compute_kanban_date_start", store=True,)
+    day = fields.Char("Day", compute="_compute_date_start")
+    month = fields.Char("Month and Year", compute="_compute_date_start")
+    time = fields.Char("Time", compute="_compute_date_start")
 
     repeat_weekly = fields.Integer(string="Repeat Weekly", default=1)
     weekday = fields.Char(string="Day of week")
@@ -110,41 +143,24 @@ class MeetingSchedule(models.Model):
     is_first_tag = fields.Boolean(default=True)
     check_access_team_id = fields.Boolean("Check Access", compute="_check_user_id")
 
-    attachment_ids = fields.One2many('ir.attachment','res_id', string="Attachments") 
+    attachment_ids = fields.One2many('ir.attachment','res_id', string="Attachments" 
+    ) 
     file_attachment_ids = fields.Many2many(
         'ir.attachment', string="Attach File", 
         inverse='_inverse_file_attachment_ids'
         )
     
     partner_ids = fields.Many2many(
-        comodel_name="hr.employee",
-        inverse_name='child_ids',
+        "res.partner",
         string="Attendees",
     )
     is_partner = fields.Boolean(default=True, compute="_check_user_id")
     for_attachment = fields.Boolean(default=True, compute="_check_user_id")
     customize = fields.Boolean(string="Customize", default=False)
+    is_same_date = fields.Boolean(default=True)
     is_long_meeting = fields.Boolean(default=True)
-
-    def _compute_default_start_minutes(self):
-        time_start_date =  self.start_date.astimezone(self.get_local_tz()) 
-        start_hour = time_start_date.hour
-        start_minute = time_start_date.minute
-        
-        formatted_hour = f"{start_hour:02d}"
-        formatted_minute = f"{start_minute:02d}"
-        
-        self.start_minutes = f"{formatted_hour}:{formatted_minute}"
-
-    def _compute_default_end_minutes(self):
-        time_end_date =  self.end_date.astimezone(self.get_local_tz())
-        end_hour = time_end_date.hour
-        end_minute = time_end_date.minute
-        
-        formatted_hour = f"{end_hour:02d}"
-        formatted_minute = f"{end_minute:02d}"
-        
-        self.end_minutes = f"{formatted_hour}:{formatted_minute}"
+    is_first_event = fields.Boolean(default=True)
+    is_first_end_date = fields.Datetime()
 
     def _inverse_file_attachment_ids(self):
         self.attachment_ids = self.file_attachment_ids
@@ -164,11 +180,10 @@ class MeetingSchedule(models.Model):
     @api.depends("room_id", "user_id")
     def _compute_meeting_name(self):
         for record in self:
-            if record.room_id and record.user_id:
-                record.name = f"{record.room_id.name} - {record.user_id.name}"
+            record.name = f"{record.room_id.name} - {record.user_id.name}"
 
     @api.depends("start_date")
-    def _compute_kanban_date_start(self):
+    def _compute_date_start(self):
         for record in self:
             if record.start_date:
                 date_obj = record.start_date.astimezone(self.get_local_tz())
@@ -231,6 +246,20 @@ class MeetingSchedule(models.Model):
                 if conflicting_bookings:
                     raise ValidationError("The room is already booked for this time period.")
 
+    # Onchange
+    @api.onchange("start_minutes", "end_minutes")
+    def _onchange_minutes(self):
+            if self.start_date and self.end_date:
+                start = split_time(str(self.start_minutes))
+                end = split_time(str(self.end_minutes))
+
+                start_date = fields.Datetime.from_string(self.start_date)
+                new_start_date = start_date.replace(hour=int(start["hour"])-7, minute=int(start["minutes"]))
+                self.start_date = fields.Datetime.to_string(new_start_date)
+                end_date = fields.Datetime.from_string(self.end_date)
+                new_end_date = end_date.replace(hour=int(end["hour"])-7, minute=int(end["minutes"]))
+                self.end_date = fields.Datetime.to_string(new_end_date)
+
     @api.constrains("file_attachment_ids")
     def _validate_attachment(self):
         allowed_extensions = ["txt","doc","docx","xlsx","csv","ppt","pptx","pdf","png","jpg","jpeg"]
@@ -238,8 +267,11 @@ class MeetingSchedule(models.Model):
         for record in self:
             
             if record.file_attachment_ids:
-                if "." not in record.file_attachment_ids.name \
-                or record.file_attachment_ids.name.rsplit(".", 1)[1].lower() not in allowed_extensions:
+                if (
+                    "." not in record.file_attachment_ids.name
+                    or record.file_attachment_ids.name.rsplit(".", 1)[1].lower()
+                    not in allowed_extensions
+                ):
                     raise ValidationError("Invalid attachment file type")
                 max_file_size = 10 * 1000 * 1000
                 if record.file_attachment_ids.file_size > max_file_size:
@@ -250,23 +282,39 @@ class MeetingSchedule(models.Model):
                     )
 
     @api.onchange("start_date", "end_date")
-    def _onchange_start_end_date(self):
+    def _onchange_compute_duration(self):
         if self.start_date and self.end_date:
-            start_date = self.start_date.astimezone(self.get_local_tz()) 
-            end_date = self.end_date.astimezone(self.get_local_tz()) 
-            
-            start_seconds = start_date.hour * 3600 + start_date.minute * 60 + start_date.second
-            end_seconds = end_date.hour * 3600 + end_date.minute * 60 + end_date.second
+            local_start = self.convert_to_local(str(self.start_date), "Asia/Ho_Chi_Minh")
+            local_end = self.convert_to_local(str(self.end_date), "Asia/Ho_Chi_Minh")
+            number_date = local_end - local_start
+            for item in range(0, number_date.days + 1):
+                newday = local_start
+                if newday.weekday() == 0:
+                    self.monday = {"readonly": True}
+                elif newday.weekday() == 1:
+                    self.tuesday = {"readonly": True}
+                elif newday.weekday() == 2:
+                    self.wednesday = {"readonly": True}
+                elif newday.weekday() == 3:
+                    self.thursday = {"readonly": True}
+                elif newday.weekday() == 4:
+                    self.friday = {"readonly": True}
+                elif newday.weekday() == 5:
+                    self.saturday = {"readonly": True}
+                else:
+                    self.sunday = {"readonly": True}
+
+                local_start += timedelta(days=1)
+
+            start_time = self.start_date.astimezone(self.get_local_tz()).time()
+            end_time = self.end_date.astimezone(self.get_local_tz()).time()
+
+            start_seconds = start_time.hour * 3600 + start_time.minute * 60 + start_time.second
+            end_seconds = end_time.hour * 3600 + end_time.minute * 60 + end_time.second
                 
             duration_seconds = end_seconds - start_seconds
             duration_hours = duration_seconds / 3600
             self.duration = duration_hours
-
-            self.start_minutes = str(start_date.hour).zfill(2) + ":" + str(start_date.minute).zfill(2)
-            self.end_minutes = str(end_date.hour).zfill(2) + ":" + str(end_date.minute).zfill(2)          
-        
-            if self.duration != 0 and end_date.date() != start_date.date() and self.meeting_type != "daily" :
-                self.meeting_type = "daily"
 
     @api.onchange("start_date")
     def _onchange_start_date(self):
@@ -307,51 +355,72 @@ class MeetingSchedule(models.Model):
         else:
             self.is_long_meeting = True
 
-    @api.onchange("meeting_type")
-    def ons(self):
-        if self.meeting_type != "daily" and self.s_date != self.e_date:
-            self.end_date = self.end_date.replace(day=self.start_date.day
-            ,month = self.start_date.month
-            ,year=self.start_date.year)
+    @api.onchange("start_date", "end_date", "meeting_type")
+    def onchange_check_date(self):
+        start_date = self.start_date.astimezone(self.get_local_tz())
+        end_date = self.end_date.astimezone(self.get_local_tz())
+        if (
+            self.meeting_type != "daily"
+            and start_date.date() != end_date.date()
+            and self.duration != 0
+        ):
+            if (
+                self.start_date.date() != self.end_date.date()
+                and self.is_first_event == True
+            ):
+                self.meeting_type = "daily"
+                self.is_first_event = False
+            else:
+                start = split_time(str(self.start_minutes))
+                end = split_time(str(self.end_minutes))
+                new_start_date = int(start["hour"]) * 60 + int(start["minutes"])
+                new_end_date = int(end["hour"]) * 60 + int(end["minutes"])
+                self.end_date = self.start_date + timedelta(
+                    minutes=int(new_end_date - new_start_date)
+                )
+
+            self.is_same_date = False
+        else:
+            self.is_same_date = True
 
     @api.onchange("start_date", "meeting_type")
     def onchange_start_time(self):
-        local_tz = self.get_local_tz()
-        if self.start_date and self.meeting_type:
-            if self.meeting_type == "daily":
+        if self.meeting_type == "daily":
+            self.monday = True
+            self.tuesday = True
+            self.thursday = True
+            self.wednesday = True
+            self.friday = True
+            self.saturday = False
+            self.sunday = False
+        if self.meeting_type == "weekly":
+            self.monday = False
+            self.tuesday = False
+            self.thursday = False
+            self.wednesday = False
+            self.friday = False
+            self.saturday = False
+            self.sunday = False
+
+            local_start = self.convert_to_local(
+                str(self.start_date), "Asia/Ho_Chi_Minh"
+            )
+            day_of_week = local_start.weekday()
+            if day_of_week == 0:
                 self.monday = True
+            elif day_of_week == 1:
                 self.tuesday = True
-                self.thursday = True
+            elif day_of_week == 2:
+
                 self.wednesday = True
+            elif day_of_week == 3:
+                self.thursday = True
+            elif day_of_week == 4:
                 self.friday = True
-                self.saturday = False
-                self.sunday = False
-            if self.meeting_type == "weekly":
-                self.monday = False
-                self.tuesday = False
-                self.thursday = False
-                self.wednesday = False
-                self.friday = False
-                self.saturday = False
-                self.sunday = False
-
-                local_start = self.start_date.astimezone(local_tz)
-                day_of_week = local_start.weekday()
-
-                if day_of_week == 0:
-                    self.monday = True
-                elif day_of_week == 1:
-                    self.tuesday = True
-                elif day_of_week == 2:
-                    self.wednesday = True
-                elif day_of_week == 3:
-                    self.thursday = True
-                elif day_of_week == 4:
-                    self.friday = True
-                elif day_of_week == 5:
-                    self.saturday = True
-                elif day_of_week == 6:
-                    self.sunday = True
+            elif day_of_week == 5:
+                self.saturday = True
+            elif day_of_week == 6:
+                self.sunday = True
 
     # Business Logic Methods
     def create_daily(self):
@@ -401,8 +470,10 @@ class MeetingSchedule(models.Model):
                     "meeting_subject": self.meeting_subject,
                     "description": self.description,
                     "meeting_type": "normal",
-                    "start_date": meeting_date,
-                    "end_date": datetime.combine(meeting_date.date(), end_datetime.time()),
+                    "start_date": fields.Datetime.to_string(meeting_date),
+                    "end_date": fields.Datetime.to_string(
+                        datetime.combine(meeting_date.date(), end_datetime.time())
+                    ),
                     "duration": self.duration,
                     "file_attachment_ids": self.file_attachment_ids,
                     "room_id": self.room_id.id,
@@ -411,11 +482,10 @@ class MeetingSchedule(models.Model):
                     "is_edit": True,
                     "is_first_tag": False,
                     "partner_ids": self.partner_ids,
-                    's_date': meeting_date.date(),
-                    'e_date': meeting_date.date(),
                 })
 
         self.create(meeting_to_create)
+
 
     def create_weekly(self):
         schedules_to_create = []
@@ -434,7 +504,8 @@ class MeetingSchedule(models.Model):
                             "meeting_subject": schedule.meeting_subject,
                             "description": schedule.description,
                             "start_date": current_date,
-                            "end_date": current_date + timedelta(hours=schedule.duration),
+                            "end_date": current_date
+                            + timedelta(hours=schedule.duration),
                             "meeting_type": "normal",
                             "room_id": schedule.room_id.id,
                             "company_id": schedule.company_id.id,
@@ -445,11 +516,9 @@ class MeetingSchedule(models.Model):
                             "is_edit": True,
                             "is_first_tag": False,
                             "partner_ids": self.partner_ids,
-                            's_date': current_date.date(),
-                            'e_date': (current_date + timedelta(hours=schedule.duration)).date()
                         }
                     )
-                schedules_to_create.extend(new_schedules)
+            schedules_to_create.extend(new_schedules)
 
         self.create(schedules_to_create)
 
@@ -466,7 +535,9 @@ class MeetingSchedule(models.Model):
     def _validate_start_date(self):
         user_tz = self.env.user.tz or "UTC"
         local_tz = timezone(user_tz)
-        start_datetime = fields.Datetime.from_string(self.start_date).astimezone(local_tz)
+        start_datetime = fields.Datetime.from_string(self.start_date).astimezone(
+            local_tz
+        )
 
         weekday_mapping = {
             0: ("Monday", self.monday),
@@ -485,52 +556,58 @@ class MeetingSchedule(models.Model):
 
     def send_email_to_attendees(self):
         mail_template = "booking_room.invite_meeting_mail_template"
-        subject_template = "[Metting] Invite Meeting Attendance"
+        subject_template = "[Meeting] Invite Meeting Attendance"
         self._send_message_auto_subscribe_notify(
             self.partner_ids, mail_template, subject_template
         )
 
     @api.model
-    def _send_message_auto_subscribe_notify(
-        self, users_per_task, mail_template, subject_template
-    ):
-        template_id = self.env["ir.model.data"]._xmlid_to_res_id(
-            mail_template, raise_if_not_found=False
-        )
+    def _send_message_auto_subscribe_notify(self, employees, mail_template, subject_template):
+        template_id = self.env["ir.model.data"]._xmlid_to_res_id(mail_template, raise_if_not_found=False)
         if not template_id:
             return
         view = self.env["ir.ui.view"].browse(template_id)
-        date_obj = fields.Datetime.to_string(
-            fields.Datetime.context_timestamp(
-                self, fields.Datetime.from_string(self.start_date)
-            )
-        )
-        for users in users_per_task:
-            if not users:
-                continue
-            values = {
-                "object": self,
-                "date_obj": date_obj,
-                "model_description": "Invite meeting",
-                "access_link": self._notify_get_action_link("view"),
-            }
 
-            for user in users:
-                values["dear"] = user.name
-                assignation_msg = view._render(
-                    values, engine="ir.qweb", minimal_qcontext=True
-                )
-                assignation_msg = self.env["mail.render.mixin"]._replace_local_links(
-                    assignation_msg
-                )
-                self.message_notify(
-                    subject=subject_template,
-                    body=assignation_msg,
-                    partner_ids=[user.id],
-                    record_name=self.display_name,
-                    email_layout_xmlid="mail.mail_notification_light",
-                    model_description="Invite meeting",
-                )
+        email_addresses = employees.mapped('work_email')
+        email_addresses = list(filter(None, email_addresses))  # Remove any empty email addresses
+
+        if not email_addresses:
+            return
+
+        date_obj = fields.Datetime.to_string(
+            fields.Datetime.context_timestamp(self, fields.Datetime.from_string(self.start_date))
+        )
+
+        values = {
+            "object": self,
+            "date_obj": date_obj,
+            "model_description": "Invite meeting",
+            "access_link": self._notify_get_action_link("view"),
+        }
+
+        assignation_msg = view._render(values, engine="ir.qweb", minimal_qcontext=True)
+        assignation_msg = self.env["mail.render.mixin"]._replace_local_links(assignation_msg)
+
+        mail_values = {
+            'subject': subject_template,
+            'body_html': assignation_msg,
+            'email_to': ','.join(email_addresses),
+            'email_from': self.env.user.email or '',
+        }
+
+        mail = self.env['mail.mail'].create(mail_values)
+        mail.send()
+
+    def convert_to_local(self, utc_datetime=None, timezone="utc"):
+        """Convert UTC time to Localtime"""
+        utc_datetime = datetime.strptime(utc_datetime, "%Y-%m-%d %H:%M:%S")
+        utc = pytz.timezone("UTC")
+        utc_dt = utc.localize(utc_datetime)
+        local = pytz.timezone(timezone)
+        local_dt = utc_dt.astimezone(local)
+        local_dt = local_dt.replace(tzinfo=None)
+
+        return local_dt
 
     def get_local_tz(self, offset=False):
         user_tz = self.env.user.tz or "UTC"
@@ -556,9 +633,11 @@ class MeetingSchedule(models.Model):
             meeting_schedule.create_daily()
         elif meeting_type == "weekly":
             meeting_schedule.create_weekly()
-        if vals["is_first_tag"] == True \
-        and "partner_ids" in vals \
-        and len(vals["partner_ids"][0][2]) > 0:
+        if (
+            vals["is_first_tag"] == True
+            and "partner_ids" in vals
+            and len(vals["partner_ids"][0][2]) > 0
+        ):
             id = meeting_schedule.id
             meeting_schedule.send_email_to_attendees()
         return meeting_schedule
@@ -576,18 +655,30 @@ class MeetingSchedule(models.Model):
 
     def unlink(self):
         for record in self:
-            if not record._check_is_hr() and record._check_is_past_date(start_date=record.start_date):
+            if not record._check_is_hr() and record._check_is_past_date(
+                start_date=record.start_date
+            ):
                 raise ValidationError("Cannot delete ongoing or finished meetings.")
         return super(MeetingSchedule, self).unlink()
 
     @api.model
-    def delete_meeting(self, selected_value, id):
-        find_meeting = self.search([("id", "=", id)])
+    def delete_meeting(self, selected_value, dateStart):
+        id = dateStart
+        find_meeting = self.search(
+            [
+                ("id", "=", id),
+            ]
+        )
+
         if self._check_is_hr() == True:
             if selected_value == "self_only":
                 find_meeting.unlink()
             elif selected_value == "future_events":
-                record_to_detele = self.search([("start_date", ">=", find_meeting.start_date)])
+                record_to_detele = self.search(
+                    [
+                        ("start_date", ">=", find_meeting.start_date),
+                    ]
+                )
                 find_meeting.unlink()
                 record_to_detele.unlink()
             else:
