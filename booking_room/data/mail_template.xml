@@ -3,17 +3,63 @@
     <data noupdate="0">
 
         <template id="invite_meeting_mail_template">
-            <p style="margin: 0px;">
-                <p>Dear <t t-esc="dear"/>,</p>
-                <p style="margin-top: 8px;">You are invited to a meeting. Please attend at <t t-esc="date_obj"/>, room <t t-esc="object.room_id.id"/>.</p>
-            </p>
-            <p>Thank you!</p>
-            <p style="padding-top: 24px; padding-bottom: 16px;">
-                <a t-att-href="access_link" style="background-color:#875A7B; padding: 10px; text-decoration: none; color: #fff; border-radius: 5px;">
-                        View <t t-esc="model_description or 'Applications'"/>
-                </a>
-            </p>
-            <br></br>
+
+            <div id=":n1" class="ii gt" jslog="20277; u014N:xr6bB; 1:WyIjdGhyZWFkLWY6MTc5ODQ1MDQyMzE5NTQwOTM3NSJd; 4:WyIjbXNnLWY6MTc5ODQ1MDQyMzE5NTQwOTM3NSJd"><div id=":n2" class="a3s aiL "><table border="0" cellpadding="0" cellspacing="0" style="padding-top:16px;background-color:#f1f1f1;font-family:Verdana,Arial,sans-serif;color:#454748;width:100%;border-collapse:separate"><tbody><tr><td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="590" style="padding:24px;background-color:white;color:#454748;border-collapse:separate">
+                <tbody>
+                    <tr>
+                        <td align="center" style="min-width:590px">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:white;padding:0;border-collapse:separate">
+                                <tbody><tr><td valign="middle">
+                                    <span style="font-size:10px">Your Invite meeting</span>
+                                    <span style="font-size:20px;font-weight:bold">
+                                    </span>
+                                </td><td valign="middle" align="right">
+                                </td></tr>
+                                <tr><td colspan="2" style="text-align:center">
+                                  <hr width="100%" style="background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0;margin:4px 0px 32px 0px"></hr>
+                                </td></tr>
+                            </tbody></table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="min-width:590px">
+                            <p style="margin:0px">
+                                <p>Dear Sir/Madam<t t-esc="dear"/>,</p>
+                                <p style="margin-top: 8px;">You are invited to a meeting. Please attend at <t t-esc="date_obj"/>, room <t t-esc="object.room_id.id"/>.</p>
+</p>
+                            <p>Thank you!</p>
+                            <p style="padding-top: 24px; padding-bottom: 16px;">
+                                <a t-att-href="access_link" style="background-color:#875A7B; padding: 10px; text-decoration: none; color: #fff; border-radius: 5px;">
+                                        View <t t-esc="model_description or 'Applications'"/>
+                                </a>
+                            </p>
+                            <br/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="min-width:590px;padding:0 8px 0 8px;font-size:11px">
+                            <hr width="100%" style="background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0;margin:16px 0px 4px 0px"></hr>
+                            <b><t t-esc="object.user_id.company_id.name"/></b><br/>
+                            <div style="color:#999999">
+                                <t t-esc="object.user_id.phone"/>   
+                                 |
+                                    <a style="text-decoration:none;color:#999999" href="mailto:info@yourcompany.com" target="_blank">info@yourcompany.com</a>
+                                 |
+                                    <a style="text-decoration:none;color:#999999" href="http://www.example.com" target="_blank" data-saferedirecturl="https://www.google.com/url?q=http://www.example.com&amp;source=gmail&amp;ust=1715825756559000&amp;usg=AOvVaw3S9vdmjfxUK4LbI2MCfmY0">
+                                        http://www.example.com
+                                    </a>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+                </table>
+                </td></tr>
+                <tr><td align="center" style="min-width:590px">
+                        Powered by <a href="https://www.odoo.com?utm_source=db&amp;utm_medium=email" style="color:#875a7b" target="_blank" data-saferedirecturl="https://www.google.com/url?q=https://www.odoo.com?utm_source%3Ddb%26utm_medium%3Demail&amp;source=gmail&amp;ust=1715825756559000&amp;usg=AOvVaw1ENhsZX3BLwTSxowk8O6JM">Odoo</a>
+                </td></tr>
+                </tbody></table><div class="yj6qo"></div><div class="adL">
+                </div></div></div>
         </template>
 
     </data>
