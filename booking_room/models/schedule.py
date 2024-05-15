@@ -124,12 +124,7 @@ class MeetingSchedule(models.Model):
         self.attachment_ids = self.file_attachment_ids
         return
 
-    @api.constrains('file_attachment_ids')
-    def _check_file_attachment_ids(self):
-        for record in self:
-            if len(record.file_attachment_ids) > 1:
-                raise ValidationError("You can only attach one file.")
-
+    #Depends
     @api.depends("user_id")
     def _check_user_id(self):
         for rec in self:
@@ -176,6 +171,12 @@ class MeetingSchedule(models.Model):
                 record.duration = duration_hours
 
     # Constraints
+    @api.constrains('file_attachment_ids')
+    def _check_file_attachment_ids(self):
+        for record in self:
+            if len(record.file_attachment_ids) > 1:
+                raise ValidationError("You can only attach one file.")
+
     @api.constrains("duration")
     def _check_duration(self):
         for schedule in self:
@@ -223,7 +224,8 @@ class MeetingSchedule(models.Model):
                         f"Attachment file size is {round(size_in_mb,2)} MB "
                         f"which exceeds the maximum file size allowed of {max_file_size / 1000 / 1000} MB"
                     )
-
+                    
+    # Onchanges
     @api.onchange("start_date", "end_date")
     def _onchange_start_end_date(self):
         if self.start_date and self.end_date:
