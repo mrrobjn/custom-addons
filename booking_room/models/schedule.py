@@ -2,7 +2,6 @@ from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 from datetime import timedelta, datetime
 from pytz import timezone
-from datetime import timedelta, datetime
 
 def generate_start_minutes_selection():
     start_minutes_selection = []
@@ -121,7 +120,6 @@ class MeetingSchedule(models.Model):
         inverse_name='child_ids',
         string="Attendees",
     )
-    is_partner = fields.Boolean(default=True, compute="_check_for_attachment")
     for_attachment = fields.Boolean(default=True, compute="_check_for_attachment")
     customize = fields.Boolean(string="Customize", default=False)
     is_long_meeting = fields.Boolean(default=True)
@@ -164,12 +162,11 @@ class MeetingSchedule(models.Model):
     @api.depends("partner_ids")
     def _check_for_attachment(self):
         for rec in self:
-            # if rec.partner_ids and rec.is_edit == True:
-            rec.is_partner = bool(rec._check_is_hr() or self.partner_ids.id in rec.partner_ids.ids)
-            rec.for_attachment = bool(  
-                rec._check_is_hr()
-                or self.partner_ids.id in rec.partner_ids.ids
-                or self.env.uid == rec.create_uid.id
+            is_hr = rec._check_is_hr()
+            rec.for_attachment = bool(
+                is_hr or
+                self.env.user.id == rec.create_uid.id or
+                any(partner.id in rec.partner_ids.ids for partner in rec.partner_ids)
             )
 
     @api.depends("room_id", "user_id")
@@ -301,7 +298,6 @@ class MeetingSchedule(models.Model):
             time_obj = datetime.strptime(self.start_minutes, "%H:%M").time()
             combined_datetime = datetime.combine(self.s_date, time_obj)
             self.start_date = combined_datetime - timedelta(hours=local_offset)
-
 
     @api.onchange("e_date", "end_minutes")
     def onchange_e_date(self):
@@ -535,7 +531,7 @@ class MeetingSchedule(models.Model):
             'email_from': self.env.user.email or '',
         }
 
-        mail = self.env['mail.mail'].create(mail_values)
+        mail = self.env['mail.mail'].sudo().create(mail_values)
         mail.send()
 
     def get_local_tz(self, offset=False):
