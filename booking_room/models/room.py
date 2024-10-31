@@ -7,6 +7,6 @@ class MeetingRoom(models.Model):
     _description = "Meeting room"
 
 
-    name = fields.Char(string="Room name", required=True)
+    name = fields.Char(string="Room's name", required=True)
     description = fields.Text(string="Description")
     active = fields.Boolean(string="Active", default=True)
